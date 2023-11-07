@@ -23,14 +23,6 @@ int main(int argc, char * argv[]) {
 
     printf("Nome utente: %s", playerName);
 
-    
-
-
-
-
-
-    
-
     printf("\n");
     return 0;   
 }

@@ -10,7 +10,6 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-int toInteger(char *);
 void printBoard(char **, int, int);
 
 int main(int argc, char * argv[]) {
@@ -28,8 +27,8 @@ int main(int argc, char * argv[]) {
 
     // Estrapoliamo in due variabili intere le righe e le colonne della matrice
     // che andremo a generare come campo di gioco.
-    int row = toInteger(argv[1]);
-    int col = toInteger(argv[2]);
+    int row = atoi(argv[1]);
+    int col = atoi(argv[2]);
     
     // Creaiamo il campo di gioco. NB: le dimensioni minime sono 5x5, quindi
     // verifichiamo che le dimensioni siano corrette prima di generare la matrice
@@ -71,20 +70,6 @@ int main(int argc, char * argv[]) {
     return 0;
 }
 
-
-/* Conversione dell'argomento (char *) in numero intero. */
-int toInteger(char * a) {
-    int result = 0;
-    int len = strlen(a);
-
-    for (int i = 0; i < len; i++) {
-       result *= 10;
-       result += a[i] - 48;
-
-    }
-
-    return result;
-}
 
 /* Procedura accessoria che permette di stampare a video la matrice */
 void printBoard(char ** gB, int r, int c) {
