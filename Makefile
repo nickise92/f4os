@@ -1,18 +1,31 @@
-all: bin/F4Server bin/F4Client
+SERVER=bin/F4Server
+CLIENT=bin/F4Client
+CFLAGS=-Wall -std=c99
+INCLUDES=-I./lib
 
+SRCS_SERVER=src/errExit.c src/F4Server.c 
+SRCS_CLIENT=src/errExit.c src/F4Client.c
 
-bin/F4Server: src/server.c
-	@echo "Compiling server..."
-	gcc src/server.c -o bin/F4Server
+all: $(SERVER) $(CLIENT)
+
+server: $(SERVER)
+
+client: $(CLIENT)
+
+$(SERVER): $(SRCS_SERVER)
+	@echo "Compiling F4Server..."
+	gcc $(CFLAGS) $(INCLUDES) $(SRCS_SERVER) -o $(SERVER)
 	@echo "Done."
 
-bin/F4Client: src/client.c 
-	@echo "Compiling client..."
-	gcc src/client.c -o bin/F4Client 
+$(CLIENT): $(SRCS_CLIENT)
+	@echo "Compiling F4Client..."
+	gcc $(CFLAGS) $(INCLUDES) $(SRCS_CLIENT) -o $(CLIENT)
 	@echo "Done."
 
-clean: 
-	@echo "Removing all file(s)..."
-	rm bin/*
+.PHONY: clean
+
+clean:
+	@echo "Removing executable file(s)..."
+	@rm -f bin/*
 	@echo "Done."
-	
+
