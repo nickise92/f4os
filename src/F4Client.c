@@ -10,12 +10,18 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/shm.h>
+#include <sys/stat.h>
+#include <sys/msg.h>
 
 #include "errExit.h"
+#include "message.h"
 
 void printBoard(char **, int, int);
 
 int main(int argc, char * argv[]) {
+
+    key_t serverKey = 100; // Coda di invio messaggi al Server
+    key_t clientKey = 101; // Coda di ricezione dei messaggi dal Server
 
     /* Verifica che il numero di argomenti al lancio del gioco sia corretto */
     if (argc < 2) {
@@ -23,11 +29,47 @@ int main(int argc, char * argv[]) {
         errExit(msg);
     }
 
-    char * playerName = argv[1];
+    // Creiamo la coda di ricezione
+    int msqCli = msgget(clientKey,  S_IRUSR | S_IWUSR);
+    if (msqCli == -1) {
+        errExit("msgget failed");
+    }
 
-    printf("Giocatore 1: %s\n", playerName);
+    unsigned long len = strlen(argv[1]);
+    /* Invia al server il nome del giocatore che si e' connsesso */
 
-    printf("In attesa del secondo giocatore...\n");
+    // Creiamo la coda di invio
+    int msqSrv = msgget(serverKey, S_IRUSR | S_IWUSR);
+    if (msqSrv == -1) {
+        errExit("msgget failed");
+    }
+    // inizializzo il messaggio
+    struct message msg;
+    msg.mtype = 1;
+
+    for (int i = 0; i < len; i++) {
+        msg.content[i] = argv[1][i];
+    }
+    msg.content[len] = '\0';
+
+    size_t mSize = sizeof(struct message) - sizeof(long);
+
+    if (msgsnd(msqSrv, &msg, mSize, 0) == -1) {
+        errExit("msgsnd failed");
+    }
+
+    printf("<F4Client> In attesa di conferma della connessione al Server...\n");
+
+    /* Attende la risposta dal server per la conferma della connessione e per
+     * conoscere il simbolo di gioco */
+
+    if (msgrcv(msqCli, &msg, mSize, 0, 0) == -1) {
+        errExit("msgrcv failed");
+    }
+
+    printf("%s", msg.content);
+
+
 
     return 0;
 }
