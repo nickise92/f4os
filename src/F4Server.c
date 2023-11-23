@@ -11,13 +11,23 @@
 #include <sys/stat.h>
 #include <sys/shm.h>
 #include <sys/msg.h>
+<<<<<<< HEAD
 
+=======
+#include <signal.h>
+>>>>>>> c5d7126bdec0d0977e105231b6387d73d50b0e0b
 
 #include "errExit.h"
 #include "message.h"
 
+<<<<<<< HEAD
 
 void reciveMessage(key_t key,int msqid, struct message * msg, int mSize, int msgtyp, int msgflg);
+=======
+/* Setup code dei messaggi fra server e giocatori */
+int msqP1ID;
+int msqP2ID;
+>>>>>>> c5d7126bdec0d0977e105231b6387d73d50b0e0b
 
 int main(int argc, char * argv[]) {
 
@@ -41,9 +51,11 @@ int main(int argc, char * argv[]) {
      * le dimensioni inserite siano corrette prima di generare la matrice */
     if (row < 5 || col < 5) {
         const char *msg = "Errore! Il campo di gioco minimo deve avere dimensioni 5x5!\n";
-        errExit(msg);
+        printf("%s", msg);
+        exit(1);
     }
 
+<<<<<<< HEAD
     printf("<F4Server> In attesa della connessione dei giocatori...\n");
 
     // TODO: Allocare matrice per campo di gioco in memoria condivisa
@@ -111,6 +123,44 @@ int main(int argc, char * argv[]) {
     if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
         errExit("msgsnd failed");
     }
+=======
+    // Allochiamo la matrice che funge da campo di gioco in uno spazio di memoria condivisa
+    char ** gameBoard;
+    gameBoard = (char **) malloc (sizeof(char *) * row);
+    for (int i = 0; i < col; i++) {
+        gameBoard[i] = (char *) malloc (sizeof(char) * col);
+    }
+
+    /* Setup della coda condivisa tra giocatore 1 e server */
+    int msgKeyP1 = 1234;
+    msqP1ID = msgget(msgKeyP1, IPC_CREAT | S_IRUSR | S_IWUSR);
+    if (msqP1ID == -1) {
+        errExit("msgget failed");
+    }
+
+    struct message msg;
+
+    /* Leggiamo il messaggio inviato dal client quando si connette */
+    size_t mSize = sizeof(struct message) - sizeof(long);
+    if (msgrcv(msqP1ID, &msg, mSize, 0, 0) == -1) {
+        errExit("msgrcv failed");
+    }
+    char * p1Name = msg.content;
+    // Stampa a video il nome del giocatore 1
+    printf("Benvenuto %s, sei il primo giocatore.", p1Name);
+
+    /* Prepariamo il messaggio da inviare al client, per comunicare il suo simbolo */
+    msg.mtype = 1; // default
+    strcpy(msg.content, "Il tuo simbolo è: ");
+    strcpy(msg.content, argv[3]);
+
+    if (msgsnd(msqP1ID, &msg, mSize, 0) == -1) {
+        errExit("msgsnd failed");
+    }
+
+    // debug
+    printf("Done\n");
+>>>>>>> c5d7126bdec0d0977e105231b6387d73d50b0e0b
 
     return 0;
 }
