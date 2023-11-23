@@ -11,23 +11,37 @@
 #include <sys/stat.h>
 #include <sys/shm.h>
 #include <sys/msg.h>
-<<<<<<< HEAD
-
-=======
 #include <signal.h>
->>>>>>> c5d7126bdec0d0977e105231b6387d73d50b0e0b
 
 #include "errExit.h"
 #include "message.h"
 
-<<<<<<< HEAD
-
-void reciveMessage(key_t key,int msqid, struct message * msg, int mSize, int msgtyp, int msgflg);
-=======
 /* Setup code dei messaggi fra server e giocatori */
-int msqP1ID;
-int msqP2ID;
->>>>>>> c5d7126bdec0d0977e105231b6387d73d50b0e0b
+int msqSrv = -1;
+int msqCli = -1;
+
+/* Handler del segnale di interruzione Ctrl+C */
+void sigHandler(int sig) {
+
+    if (msqSrv > 0) {
+        if(msgctl(msqSrv, IPC_RMID, NULL) == -1) {
+            errExit("msgctl failed");
+        } else {
+            printf("<Server> Coda di messaggi del server eliminata con successo.\n");
+        }
+    }
+    if (msqCli > 0) {
+        if (msgctl(msqCli, IPC_RMID, NULL) == -1) {
+            errExit("msgctl failed");
+        } else {
+            printf("<Server> Coda di messaggi del client eliminata con successo.\n");
+        }
+    }
+
+    exit(0);
+}
+
+
 
 int main(int argc, char * argv[]) {
 
@@ -55,20 +69,32 @@ int main(int argc, char * argv[]) {
         exit(1);
     }
 
-<<<<<<< HEAD
+    /* Gestione della pressione 'Ctrl+C' sul terminale su cui e' attivo il server */
+    int counter = 0;
+    if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        errExit("signal failed");
+    } else {
+        counter++;
+        if (counter < 2) {
+            printf("<Server> Attenzione! Segnale di interruzione intercettato, se verra' nuovamente premuta la combinazione di tasti Ctrl+C il gioco terminera'.\n");
+        } else {
+
+        }
+    }
+
     printf("<F4Server> In attesa della connessione dei giocatori...\n");
 
     // TODO: Allocare matrice per campo di gioco in memoria condivisa
 
     /* Creazione delle code condivise per lo scambio di messaggi tra client e server. */
     // Coda di invio
-    int msqSrv = msgget(serverKey, IPC_CREAT | S_IRUSR | S_IWUSR);
+    msqSrv = msgget(serverKey, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (msqSrv == -1) {
         errExit("msgget failed");
     }
 
     // Coda di risposta
-    int msqCli = msgget(clientKey, IPC_CREAT | S_IWUSR |S_IRUSR);
+    msqCli = msgget(clientKey, IPC_CREAT | S_IWUSR |S_IRUSR);
     if (msqCli == -1) {
         errExit("msgget failed");
     }
@@ -123,44 +149,6 @@ int main(int argc, char * argv[]) {
     if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
         errExit("msgsnd failed");
     }
-=======
-    // Allochiamo la matrice che funge da campo di gioco in uno spazio di memoria condivisa
-    char ** gameBoard;
-    gameBoard = (char **) malloc (sizeof(char *) * row);
-    for (int i = 0; i < col; i++) {
-        gameBoard[i] = (char *) malloc (sizeof(char) * col);
-    }
-
-    /* Setup della coda condivisa tra giocatore 1 e server */
-    int msgKeyP1 = 1234;
-    msqP1ID = msgget(msgKeyP1, IPC_CREAT | S_IRUSR | S_IWUSR);
-    if (msqP1ID == -1) {
-        errExit("msgget failed");
-    }
-
-    struct message msg;
-
-    /* Leggiamo il messaggio inviato dal client quando si connette */
-    size_t mSize = sizeof(struct message) - sizeof(long);
-    if (msgrcv(msqP1ID, &msg, mSize, 0, 0) == -1) {
-        errExit("msgrcv failed");
-    }
-    char * p1Name = msg.content;
-    // Stampa a video il nome del giocatore 1
-    printf("Benvenuto %s, sei il primo giocatore.", p1Name);
-
-    /* Prepariamo il messaggio da inviare al client, per comunicare il suo simbolo */
-    msg.mtype = 1; // default
-    strcpy(msg.content, "Il tuo simbolo è: ");
-    strcpy(msg.content, argv[3]);
-
-    if (msgsnd(msqP1ID, &msg, mSize, 0) == -1) {
-        errExit("msgsnd failed");
-    }
-
-    // debug
-    printf("Done\n");
->>>>>>> c5d7126bdec0d0977e105231b6387d73d50b0e0b
 
     return 0;
 }

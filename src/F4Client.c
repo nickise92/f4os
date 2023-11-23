@@ -11,17 +11,11 @@
 #include <sys/wait.h>
 #include <sys/shm.h>
 #include <sys/stat.h>
-<<<<<<< HEAD
 #include <sys/msg.h>
 
 #include "errExit.h"
 #include "message.h"
-=======
 
-#include "errExit.h"
-#include "message.h"
-
->>>>>>> c5d7126bdec0d0977e105231b6387d73d50b0e0b
 
 void printBoard(char **, int, int);
 
@@ -75,34 +69,6 @@ int main(int argc, char * argv[]) {
     }
 
     printf("%s", msg.content);
-
-<<<<<<< HEAD
-=======
-    printf("Giocatore 1: %s\n", playerName);
-    /* Invia al server il nome del giocatore e riceve il simbolo */
-    int msgKey = 1234;
-    int msqP1ID = msgget(msgKey, S_IRUSR | S_IWUSR);
-    if (msqP1ID == -1) {
-        errExit("msgget failed");
-    }
-
-    struct message msg;
-
-    msg.mtype = 1;
-    msg.content = argv[1];
-
-    size_t mSize = sizeof(struct message) - sizeof(long);
-    if (msgsnd(msqP1ID, &msg, mSize, 0) == -1) {
-        errExit("msgsnd failed");
-    }
-    /* Ricezione del simbolo */
-    if (msgrcv(msqP1ID, &msg, mSize, 0, 0) == -1) {
-        errExit("msgrcv failed");
-    }
-
-    printf("%s", msg.content);
->>>>>>> c5d7126bdec0d0977e105231b6387d73d50b0e0b
-
 
     return 0;
 }
