@@ -100,6 +100,11 @@ int main(int argc, char * argv[]) {
 
     printf("Dimensione del tabellone: %ld\n", boardSize);
 
+
+    /* Chiusura della shared memory */
+    if (shmdt(ptr_gb) == -1) {
+        errExit("shmdt failed");
+    }
     return 0;
 }
 
@@ -120,6 +125,5 @@ void printBoard(char  *gB[], int row, int col) {
         }
         printf("\n");
     }
-
 
 }

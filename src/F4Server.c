@@ -167,6 +167,10 @@ int main(int argc, char * argv[]) {
     }
 
 
+    /* Chiusura della shared memory */
+    if (shmdt(ptr_gb) == -1) {
+        errExit("shmdt failed");
+    }
 
     return 0;
 }
