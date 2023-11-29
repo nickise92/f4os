@@ -111,13 +111,12 @@ int main(int argc, char * argv[]) {
 
     struct message msg;
     msg.mtype = 1;
-    msg.row = row;
-    msg.col = col;
 
     /* Attendiamo i client leggendo i messaggi dalla coda */
     size_t mSize = sizeof(struct message) - sizeof(long);
 
     /********************** GIOCATORE 1 **********************/
+    // RICEZIONE
     if (msgrcv(msqSrv, &msg, mSize, 0, 0) == -1) {
         errExit("msgrcv failed");
     }
@@ -126,6 +125,7 @@ int main(int argc, char * argv[]) {
     // il suo simbolo di gioco
     printf("<F4Server> Giocatore 1 connesso: %s. Gettone: %s\n", name, argv[3]);
 
+    // INVIO
     /* Creiamo il messaggio per il giocatore 1, in cui confermiamo il suo gettone e
      * comunichiamo la dimensione della board di gioco */
     char * response = "<F4Server> Connessione confermata, il tuo gettone e': ";
@@ -135,12 +135,15 @@ int main(int argc, char * argv[]) {
     }
     msg.content[len] = argv[3][0];
     msg.content[len+1] = '\0';
+    msg.row = row;
+    msg.col = col;
 
     if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
         errExit("msgsnd failed");
     }
 
     /********************** GIOCATORE 2 **********************/
+    // RICEZIONE
     if (msgrcv(msqSrv, &msg, mSize, 0, 0) == -1) {
         errExit("msgrcv failed");
     }
@@ -156,6 +159,8 @@ int main(int argc, char * argv[]) {
     }
     msg.content[len] = argv[4][0];
     msg.content[len+1] = '\0';
+    msg.row = row;
+    msg.col = col;
 
     if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
         errExit("msgsnd failed");

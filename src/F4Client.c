@@ -86,7 +86,7 @@ int main(int argc, char * argv[]) {
     }
 
     struct shared * ptr_gb = shmat(shmid, 0, 0);
-
+    printf("<F4Client> rows: %d; cols: %d.\n", row, col);
     for (int i = 0; i < row; i++) {
         for (int j = 0; j < col; j++) {
             if (j == 0) {
