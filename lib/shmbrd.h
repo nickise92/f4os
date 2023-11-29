@@ -1,5 +1,5 @@
 #include <stdlib.h>
 
 struct shared {
-    char **board;
+    char board[100][100];
 };

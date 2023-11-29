@@ -54,14 +54,14 @@ int main(int argc, char * argv[]) {
     key_t clientKey = 101; // Coda di invio dei messaggi al Client
 
     /* Chiavi per la memoria condivisa */
-    key_t boardKey = 5050; // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
+    key_t boardKey = 5090; // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
 
 
     /* Verifichiamo che il server sia avviato con il numero corretto di argomenti */
     if (argc < 5) {
-        const char *msg ="Errore! Devi specificare le dimensioni del campo di gioco.\n"
+        const char *err ="Errore! Devi specificare le dimensioni del campo di gioco.\n"
                          "Esempio di avvio: './F4Server 5 5 O X'\n";
-        errExit(msg);
+        errExit(err);
     }
 
     /* Estrapoliamo in due variabili intere le righe e le colonne della matrice che
@@ -72,15 +72,14 @@ int main(int argc, char * argv[]) {
     /* Creiamo il campo di gioco. Le dimensioni minime sono 5x5, quindi verifichiamo che
      * le dimensioni inserite siano corrette prima di generare la matrice */
     if (row < 5 || col < 5) {
-        const char *msg = "Errore! Il campo di gioco minimo deve avere dimensioni 5x5!\n";
-        printf("%s", msg);
+        printf("Errore! Il campo di gioco minimo deve avere dimensioni 5x5!\n");
         exit(1);
     }
 
     /********************** ALLOCAZIONE MEMORIA CONDIVISA TABELLONE **********************/
     // Associo alla memoria condivisa il campo di gioco
-    size_t gameBoardSize = sizeof(struct shared);
-    int shmid = shmget(boardKey, gameBoardSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+    size_t boardSize = sizeof(struct shared);
+    int shmid = shmget(boardKey, boardSize, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (shmid == -1) {
         errExit("shmget failed");
     }
@@ -95,7 +94,6 @@ int main(int argc, char * argv[]) {
     }
 
     printf("<F4Server> In attesa della connessione dei giocatori...\n");
-
 
     /********************** CODE MESSAGGI CONDIVISI **********************/
     /* Creazione delle code condivise per lo scambio di messaggi tra client e server. */
@@ -113,7 +111,8 @@ int main(int argc, char * argv[]) {
 
     struct message msg;
     msg.mtype = 1;
-    msg.boardSize = gameBoardSize;
+    msg.row = row;
+    msg.col = col;
 
     /* Attendiamo i client leggendo i messaggi dalla coda */
     size_t mSize = sizeof(struct message) - sizeof(long);
@@ -125,11 +124,11 @@ int main(int argc, char * argv[]) {
     char *name = msg.content;
     // Invia un messaggio di connessione stabilita al giocatore 1 e comunica
     // il suo simbolo di gioco
-    printf("<F4Server> Giocatore 1 connesso: %s.\tGettone: %s\n", name, argv[3]);
+    printf("<F4Server> Giocatore 1 connesso: %s. Gettone: %s\n", name, argv[3]);
 
     /* Creiamo il messaggio per il giocatore 1, in cui confermiamo il suo gettone e
      * comunichiamo la dimensione della board di gioco */
-    char * response = "<F4Server> Connessione confermata!\tIl tuo gettone e': ";
+    char * response = "<F4Server> Connessione confermata, il tuo gettone e': ";
     unsigned long len = strlen(response);
     for (int i = 0; i < len; i++) {
         msg.content[i] = response[i];

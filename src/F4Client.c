@@ -27,7 +27,7 @@ int main(int argc, char * argv[]) {
     key_t clientKey = 101; // Coda di ricezione dei messaggi dal Server
 
     /* Chiavi per la memoria condivisa */
-    key_t boardKey = 5050; // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
+    key_t boardKey = 5090; // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
 
     /* Verifica che il numero di argomenti al lancio del gioco sia corretto */
     if (argc < 2) {
@@ -52,7 +52,6 @@ int main(int argc, char * argv[]) {
     // inizializzo il messaggio
     struct message msg;
     msg.mtype = 1;
-    msg.boardSize = 0;
 
     for (int i = 0; i < len; i++) {
         msg.content[i] = argv[1][i];
@@ -75,20 +74,31 @@ int main(int argc, char * argv[]) {
     }
 
     printf("%s\n", msg.content);
+    int row = msg.row;
+    int col = msg.col;
 
     /* Accesso alla memoria condivisa per il campo di gioco, la dimensione viene comunicata
      * dal server. */
-    size_t gameBoardSize = msg.boardSize;
-    int shmid = shmget(boardKey, gameBoardSize, S_IRUSR | S_IWUSR);
+    size_t boardSize = sizeof(struct shared);
+    int shmid = shmget(boardKey, boardSize, S_IRUSR | S_IWUSR);
     if (shmid == -1) {
         errExit("shmget failed");
     }
 
     struct shared * ptr_gb = shmat(shmid, 0, 0);
 
-    printBoard(ptr_gb->board, 5, 5);
+    for (int i = 0; i < row; i++) {
+        for (int j = 0; j < col; j++) {
+            if (j == 0) {
+                printf("| %c |", ptr_gb->board[i][j]);
+            } else {
+                printf(" %c |", ptr_gb->board[i][j]);
+            }
+        }
+        printf("\n");
+    }
 
-    printf("Dimensione del tabellone: %ld\n", gameBoardSize);
+    printf("Dimensione del tabellone: %ld\n", boardSize);
 
     return 0;
 }
@@ -99,7 +109,7 @@ int main(int argc, char * argv[]) {
  * @param row numero di righe della matrice
  * @param col numero di colonne della matrice
  **/
-void printBoard(char ** gB, int row, int col) {
+void printBoard(char  *gB[], int row, int col) {
     for (int i = 0; i < row; i++) {
         for (int j = 0; j < col; j++) {
             if (j == 0) {
