@@ -3,6 +3,6 @@
 
 struct message {
     long mtype;
-
+    size_t boardSize;
     char content[100];
 };

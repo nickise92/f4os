@@ -15,6 +15,12 @@
 
 #include "errExit.h"
 #include "message.h"
+#include "shmbrd.h"
+
+#define P1 0
+#define P2 1
+
+
 
 /* Setup code dei messaggi fra server e giocatori */
 int msqSrv = -1;
@@ -30,6 +36,7 @@ void sigHandler(int sig) {
             printf("<Server> Coda di messaggi del server eliminata con successo.\n");
         }
     }
+
     if (msqCli > 0) {
         if (msgctl(msqCli, IPC_RMID, NULL) == -1) {
             errExit("msgctl failed");
@@ -37,16 +44,17 @@ void sigHandler(int sig) {
             printf("<Server> Coda di messaggi del client eliminata con successo.\n");
         }
     }
-
     exit(0);
 }
 
-
-
 int main(int argc, char * argv[]) {
 
-    key_t serverKey = 100; // Chiave per la ricezione dei messaggi dal Client
-    key_t clientKey = 101; // Chiave per l'invio di messaggi al Client
+    /* Chiavi per le code dei messaggi */
+    key_t serverKey = 100; // Coda di ricezione dei  messaggi dal Client
+    key_t clientKey = 101; // Coda di invio dei messaggi al Client
+
+    /* Chiavi per la memoria condivisa */
+    key_t boardKey = 5050; // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
 
 
     /* Verifichiamo che il server sia avviato con il numero corretto di argomenti */
@@ -69,23 +77,27 @@ int main(int argc, char * argv[]) {
         exit(1);
     }
 
-    /* Gestione della pressione 'Ctrl+C' sul terminale su cui e' attivo il server */
-    int counter = 0;
-    if (signal(SIGINT, sigHandler) == SIG_ERR) {
-        errExit("signal failed");
-    } else {
-        counter++;
-        if (counter < 2) {
-            printf("<Server> Attenzione! Segnale di interruzione intercettato, se verra' nuovamente premuta la combinazione di tasti Ctrl+C il gioco terminera'.\n");
-        } else {
+    /********************** ALLOCAZIONE MEMORIA CONDIVISA TABELLONE **********************/
+    // Associo alla memoria condivisa il campo di gioco
+    size_t gameBoardSize = sizeof(struct shared);
+    int shmid = shmget(boardKey, gameBoardSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+    if (shmid == -1) {
+        errExit("shmget failed");
+    }
 
+    struct shared *ptr_gb = shmat(shmid, NULL, 0);
+
+    // Inizializzazione del campo vuoto.
+    for (int i = 0; i < row; i++) {
+        for (int j = 0; j < col; j++) {
+            ptr_gb->board[i][j] = ' ';
         }
     }
 
     printf("<F4Server> In attesa della connessione dei giocatori...\n");
 
-    // TODO: Allocare matrice per campo di gioco in memoria condivisa
 
+    /********************** CODE MESSAGGI CONDIVISI **********************/
     /* Creazione delle code condivise per lo scambio di messaggi tra client e server. */
     // Coda di invio
     msqSrv = msgget(serverKey, IPC_CREAT | S_IRUSR | S_IWUSR);
@@ -101,11 +113,12 @@ int main(int argc, char * argv[]) {
 
     struct message msg;
     msg.mtype = 1;
+    msg.boardSize = gameBoardSize;
 
     /* Attendiamo i client leggendo i messaggi dalla coda */
     size_t mSize = sizeof(struct message) - sizeof(long);
 
-            /********************** GIOCATORE 1 **********************/
+    /********************** GIOCATORE 1 **********************/
     if (msgrcv(msqSrv, &msg, mSize, 0, 0) == -1) {
         errExit("msgrcv failed");
     }
@@ -114,8 +127,8 @@ int main(int argc, char * argv[]) {
     // il suo simbolo di gioco
     printf("<F4Server> Giocatore 1 connesso: %s.\tGettone: %s\n", name, argv[3]);
 
-    /* Creiamo il messaggio per il giocatore 1 */
-
+    /* Creiamo il messaggio per il giocatore 1, in cui confermiamo il suo gettone e
+     * comunichiamo la dimensione della board di gioco */
     char * response = "<F4Server> Connessione confermata!\tIl tuo gettone e': ";
     unsigned long len = strlen(response);
     for (int i = 0; i < len; i++) {
@@ -129,7 +142,6 @@ int main(int argc, char * argv[]) {
     }
 
     /********************** GIOCATORE 2 **********************/
-
     if (msgrcv(msqSrv, &msg, mSize, 0, 0) == -1) {
         errExit("msgrcv failed");
     }
@@ -149,6 +161,8 @@ int main(int argc, char * argv[]) {
     if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
         errExit("msgsnd failed");
     }
+
+
 
     return 0;
 }

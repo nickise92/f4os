@@ -15,14 +15,19 @@
 
 #include "errExit.h"
 #include "message.h"
+#include "shmbrd.h"
 
 
 void printBoard(char **, int, int);
 
 int main(int argc, char * argv[]) {
 
+    /* Chiavi per le code dei messaggi */
     key_t serverKey = 100; // Coda di invio messaggi al Server
     key_t clientKey = 101; // Coda di ricezione dei messaggi dal Server
+
+    /* Chiavi per la memoria condivisa */
+    key_t boardKey = 5050; // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
 
     /* Verifica che il numero di argomenti al lancio del gioco sia corretto */
     if (argc < 2) {
@@ -47,6 +52,7 @@ int main(int argc, char * argv[]) {
     // inizializzo il messaggio
     struct message msg;
     msg.mtype = 1;
+    msg.boardSize = 0;
 
     for (int i = 0; i < len; i++) {
         msg.content[i] = argv[1][i];
@@ -68,7 +74,21 @@ int main(int argc, char * argv[]) {
         errExit("msgrcv failed");
     }
 
-    printf("%s", msg.content);
+    printf("%s\n", msg.content);
+
+    /* Accesso alla memoria condivisa per il campo di gioco, la dimensione viene comunicata
+     * dal server. */
+    size_t gameBoardSize = msg.boardSize;
+    int shmid = shmget(boardKey, gameBoardSize, S_IRUSR | S_IWUSR);
+    if (shmid == -1) {
+        errExit("shmget failed");
+    }
+
+    struct shared * ptr_gb = shmat(shmid, 0, 0);
+
+    printBoard(ptr_gb->board, 5, 5);
+
+    printf("Dimensione del tabellone: %ld\n", gameBoardSize);
 
     return 0;
 }
