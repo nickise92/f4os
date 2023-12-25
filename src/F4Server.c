@@ -26,6 +26,7 @@
 int msqSrv = -1;
 int msqCli = -1;
 
+// TODO: Non funziona, da sistemare
 /* Handler del segnale di interruzione Ctrl+C */
 void sigHandler(int sig) {
 
@@ -93,6 +94,7 @@ int main(int argc, char * argv[]) {
         }
     }
 
+    // Attendo connessione del client
     printf("<F4Server> In attesa della connessione dei giocatori...\n");
 
     /********************** CODE MESSAGGI CONDIVISI **********************/
