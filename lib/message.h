@@ -5,5 +5,6 @@ struct message {
     long mtype;
     int row;
     int col;
+    char token;
     char content[100];
 };

@@ -139,6 +139,7 @@ int main(int argc, char * argv[]) {
     msg.content[len+1] = '\0';
     msg.row = row;
     msg.col = col;
+    msg.token = argv[3][0];
 
     if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
         errExit("msgsnd failed");
@@ -163,6 +164,7 @@ int main(int argc, char * argv[]) {
     msg.content[len+1] = '\0';
     msg.row = row;
     msg.col = col;
+    msg.token = argv[4][0];
 
     if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
         errExit("msgsnd failed");

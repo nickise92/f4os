@@ -17,11 +17,12 @@
 #include "message.h"
 #include "shmbrd.h"
 
-
-void printBoard(char **, int, int);
+int checkValidity(struct shared *, int, int);
+void printBoard(struct shared *, int, int);
 
 int main(int argc, char * argv[]) {
 
+    /* VARIABILI LOCALI CLIENT */
     /* Chiavi per le code dei messaggi */
     key_t serverKey = 100; // Coda di invio messaggi al Server
     key_t clientKey = 101; // Coda di ricezione dei messaggi dal Server
@@ -87,19 +88,32 @@ int main(int argc, char * argv[]) {
 
     struct shared * ptr_gb = shmat(shmid, 0, 0);
     printf("<F4Client> rows: %d; cols: %d.\n", row, col);
-    for (int i = 0; i < row; i++) {
-        for (int j = 0; j < col; j++) {
-            if (j == 0) {
-                printf("| %c |", ptr_gb->board[i][j]);
-            } else {
-                printf(" %c |", ptr_gb->board[i][j]);
-            }
-        }
-        printf("\n");
-    }
-
+    printBoard(ptr_gb, row, col);
     printf("Dimensione del tabellone: %ld\n", boardSize);
 
+    /* Richiesta delle coordinate su cui inserire il token
+     * e verifica della validita' */
+    int r, c, flag = 1;
+    char token = msg.token;
+
+    do {
+        // Richiesta della casella di gioco
+        printf("Inserire riga: ");
+        scanf("%d", &r);
+        printf("Inserire colonna: ");
+        scanf("%d", &c);
+
+        if (checkValidity(ptr_gb, r, c) == 1) {
+            // aggiorno il valore nel tabellone
+            ptr_gb->board[r][c] = token;
+            flag = 0;
+        } else {
+            printf("\n<F4Client> Errore! La coordinata inserita non è valida.\n");
+        }
+
+    } while(flag);
+
+    printBoard(ptr_gb, row, col);
 
     /* Chiusura della shared memory */
     if (shmdt(ptr_gb) == -1) {
@@ -107,23 +121,30 @@ int main(int argc, char * argv[]) {
     }
     return 0;
 }
-
+/* Il Client e' responsabile della richiesta al giocatore su quale casella vuole
+ * giocare il suo token e di verificarne la legittimita'.
+ */
+int checkValidity(struct shared *ptr_sh, int row, int col) {
+    if (ptr_sh->board[row][col] != 'o' && ptr_sh->board[row][col] != 'x')
+        return 1;
+    else
+        return 0;
+}
 
 /* Il Client e' responsabile della stampa del campo di gioco
  * @param gB matrice in memoria condivisa che rappresenta il campo
  * @param row numero di righe della matrice
  * @param col numero di colonne della matrice
- **/
-void printBoard(char  *gB[], int row, int col) {
+ */
+void printBoard(struct shared  *ptr_sh, int row, int col) {
     for (int i = 0; i < row; i++) {
         for (int j = 0; j < col; j++) {
             if (j == 0) {
-                printf("| %c |", gB[i][j]);
+                printf("| %c |", ptr_sh->board[i][j]);
             } else {
-                printf(" %c |", gB[i][j]);
+                printf(" %c |", ptr_sh->board[i][j]);
             }
         }
         printf("\n");
     }
-
 }
