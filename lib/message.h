@@ -3,6 +3,7 @@
 
 struct message {
     long mtype;
+    pid_t pid;
     int row;
     int col;
     char token;

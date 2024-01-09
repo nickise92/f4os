@@ -11,11 +11,13 @@
 #include <sys/stat.h>
 #include <sys/shm.h>
 #include <sys/msg.h>
+#include <sys/sem.h>
 #include <signal.h>
 
 #include "errExit.h"
 #include "message.h"
 #include "shmbrd.h"
+#include "semaphore.h"
 
 #define P1 0
 #define P2 1
@@ -56,7 +58,10 @@ int main(int argc, char * argv[]) {
 
     /* Chiavi per la memoria condivisa */
     key_t boardKey = 5090; // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
+    key_t pidKey = 6010; // Chiave per l'accesso al pid dei giocatori.
 
+    /* Chiave di accesso al semaforo */
+    key_t semKey = 6060;
 
     /* Verifichiamo che il server sia avviato con il numero corretto di argomenti */
     if (argc < 5) {
@@ -79,13 +84,13 @@ int main(int argc, char * argv[]) {
 
     /********************** ALLOCAZIONE MEMORIA CONDIVISA TABELLONE **********************/
     // Associo alla memoria condivisa il campo di gioco
-    size_t boardSize = sizeof(struct shared);
-    int shmid = shmget(boardKey, boardSize, IPC_CREAT | S_IRUSR | S_IWUSR);
-    if (shmid == -1) {
+    size_t boardSize = sizeof(struct shared_board);
+    int shBoardID = shmget(boardKey, boardSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+    if (shBoardID == -1) {
         errExit("shmget failed");
     }
 
-    struct shared *ptr_gb = shmat(shmid, NULL, 0);
+    struct shared_board *ptr_gb = shmat(shBoardID, NULL, 0);
 
     // Inizializzazione del campo vuoto.
     for (int i = 0; i < row; i++) {
@@ -93,6 +98,16 @@ int main(int argc, char * argv[]) {
             ptr_gb->board[i][j] = ' ';
         }
     }
+    /********************** ALLOCAZIONE MEMORIA CONDIVISA PID GIOCATORI **********************/
+    size_t pidSize = sizeof(struct shared_pid);
+    int shPidID = shmget(pidKey, pidSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+    if (shPidID == -1) {
+        errExit("shmget failed");
+    }
+
+    struct shared_pid * ptr_playersPid = shmat(shPidID, NULL, 0);
+    ptr_playersPid->player1 = -1;
+    ptr_playersPid->player2 = -2;
 
     // Attendo connessione del client
     printf("<F4Server> In attesa della connessione dei giocatori...\n");
@@ -123,9 +138,11 @@ int main(int argc, char * argv[]) {
         errExit("msgrcv failed");
     }
     char *name = msg.content;
+    ptr_playersPid->player1 = msg.pid;
+
     // Invia un messaggio di connessione stabilita al giocatore 1 e comunica
     // il suo simbolo di gioco
-    printf("<F4Server> Giocatore 1 connesso: %s. Gettone: %s\n", name, argv[3]);
+    printf("<F4Server> Giocatore 1 connesso.\nNome: %s;\nPID: %d;\nGettone: %s;\n", name, ptr_playersPid->player1, argv[3]);
 
     // INVIO
     /* Creiamo il messaggio per il giocatore 1, in cui confermiamo il suo gettone e
@@ -151,10 +168,11 @@ int main(int argc, char * argv[]) {
         errExit("msgrcv failed");
     }
     name = msg.content;
+    ptr_playersPid->player2 = msg.pid;
 
     // Invia un messaggio di connessione stabilita al giocatore 1 e comunica
     // il suo simbolo di gioco
-    printf("<F4Server> Giocatore 2 connesso: %s\tGettone: %s\n", name, argv[4]);
+    printf("<F4Server> Giocatore 2 connesso.\nNome: %s;\nPID: %d;\nGettone: %s;\n", name, ptr_playersPid->player2, argv[4]);
 
     // Creaiamo il messaggio per il giocatore 2.
     for (int i = 0; i < len; i++) {
@@ -170,8 +188,35 @@ int main(int argc, char * argv[]) {
         errExit("msgsnd failed");
     }
 
+    /********************** SEMAFORO REGOLATORE TURNI **********************/
+    /* Attesa su semaforo bloccante per dare il turno ai giocatori. Il giocatore
+     * 1 è bloccato finché non si connette il giocatore 2. Il server deve liberare
+     * il giocatore uno dopo la connessione del giocatore 2. Il giocatore 2 resterà
+     * bloccato fino al ritorno del controllo al server, che poi cederà il turno al
+     * giocatore 2.*/
+    // Creazione di 3 semafori
+    int semid = semget(semKey, 3, IPC_CREAT | S_IWUSR | S_IRUSR);
+    if (semid == -1) {
+        errExit("semget failed.");
+    }
+    // Inizializzazione del semaforo
+    unsigned short semInitVal[] = {[0]=0, [1]=0, [2]=0};
+    union semun arg;
+    arg.array = semInitVal;
 
-    /* Chiusura della shared memory */
+    if (semctl(semid, 0, SETALL, arg) == -1) {
+        errExit("semctl SETALL failed");
+    }
+
+    semOp(semid, (unsigned short) 0, -1);
+    printf("<F4Server> Tutti i giocatori connessi! La partita può iniziare.\n");
+    semOp(semid, (unsigned short)1, 1);
+    semOp(semid, (unsigned short) 0, -1);
+    // Verifica lo stato della partita
+    semOp(semid, (unsigned short)2, 1);     // turno giocatore 2
+    semOp(semid, (unsigned short) 0, -1);   // attende
+
+    /* Chiusura della shared_board memory */
     if (shmdt(ptr_gb) == -1) {
         errExit("shmdt failed");
     }

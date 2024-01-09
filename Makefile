@@ -3,8 +3,8 @@ CLIENT=bin/F4Client
 CFLAGS=-Wall -std=c99
 INCLUDES=-I./lib
 
-SRCS_SERVER=src/errExit.c src/F4Server.c 
-SRCS_CLIENT=src/errExit.c src/F4Client.c
+SRCS_SERVER=src/errExit.c src/F4Server.c src/semaphore.c
+SRCS_CLIENT=src/errExit.c src/F4Client.c src/semaphore.c
 
 all: $(SERVER) $(CLIENT)
 
