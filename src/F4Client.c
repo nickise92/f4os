@@ -20,10 +20,54 @@
 #include "shmbrd.h"
 #include "semaphore.h"
 
+/* Variabili globali */
+int count_sig = 0;
+
+/* Setup code dei messaggi fra server e giocatori */
+int msqSrv = -1;
+int msqCli = -1;
+
 int checkValidity(struct shared_board *, int, int);
 void printBoard(struct shared_board *, int, int);
 
+void sigHandler(int sig) {
+
+
+    if(count_sig++ == 1){
+        printf("Hai deciso di premere CTRL+C, se lo premi un altra volta faccio terminare il gioco!");
+    }
+    else if(count_sig++ == 2) {
+
+        printf("Hai deciso di premere due volte CTRL+C, ora faccio terminare il gioco!");
+
+        if (msqSrv > 0) {
+            if(msgctl(msqSrv, IPC_RMID, NULL) == -1) {
+                errExit("msgctl failed");
+            } else {
+                printf("<Server> Coda di messaggi del server eliminata con successo.\n");
+            }
+        }
+
+        if (msqCli > 0) {
+            if (msgctl(msqCli, IPC_RMID, NULL) == -1) {
+                errExit("msgctl failed");
+            } else {
+                printf("<Server> Coda di messaggi del client eliminata con successo.\n");
+            }
+        }
+        exit(0);
+    }
+
+
+}
+
+
 int main(int argc, char * argv[]) {
+
+    /* Handler CTRL-C */
+    if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        errExit("signal handler failed");
+    }
 
     /* VARIABILI LOCALI CLIENT */
     /* Chiavi per le code dei messaggi */
@@ -37,6 +81,20 @@ int main(int argc, char * argv[]) {
     /* Chiave di accesso del semaforo */
     key_t semKey = 6060;
 
+    // Accesso al semaforo
+    int semid = semget(semKey, 3, S_IRUSR | S_IWUSR);
+    if (semid == -1) {
+        errExit("semget failed");
+    }
+
+    /* Accesso alla memoria condivisa per il pid dei giocatori */
+    size_t pidSize = sizeof(struct shared_pid);
+    int shPidID = shmget(pidKey, pidSize, S_IRUSR);
+    if (shPidID == -1) {
+        errExit("shmget failed");
+    }
+
+    struct shared_pid * ptr_playersPid = shmat(shPidID, 0, 0);
 
     /* Verifica che il numero di argomenti al lancio del gioco sia corretto */
     if (argc < 2) {
@@ -45,7 +103,7 @@ int main(int argc, char * argv[]) {
     }
 
     // Creiamo la coda di ricezione
-    int msqCli = msgget(clientKey,  S_IRUSR | S_IWUSR);
+    msqCli = msgget(clientKey,  S_IRUSR | S_IWUSR);
     if (msqCli == -1) {
         errExit("msgget failed");
     }
@@ -54,7 +112,7 @@ int main(int argc, char * argv[]) {
     /* Invia al server il nome del giocatore che si e' connsesso */
 
     // Creiamo la coda di invio
-    int msqSrv = msgget(serverKey, S_IRUSR | S_IWUSR);
+    msqSrv = msgget(serverKey, S_IRUSR | S_IWUSR);
     if (msqSrv == -1) {
         errExit("msgget failed");
     }
@@ -78,14 +136,20 @@ int main(int argc, char * argv[]) {
 
     /* Attende la risposta dal server per la conferma della connessione e per
      * conoscere il simbolo di gioco. */
-    if (msgrcv(msqCli, &msg, mSize, 0, 0) == -1) {
-        errExit("msgrcv failed");
+    if (getpid() == ptr_playersPid->player1) {
+        semOp(semid, (unsigned short) 1, -1);
+        printf("Gettone: %c", ptr_playersPid->player1Token);
+
     }
-
-    printf("%s\n", msg.content);
-
-    int row = msg.row;
-    int col = msg.col;
+    if (getpid() == ptr_playersPid->player2) {
+        semOp(semid, (unsigned short) 2, -1);
+        printf("Gettone: %c", ptr_playersPid->player2Token);
+    }
+//    if (msgrcv(msqCli, &msg, mSize, 0, 0) == -1) {
+//        errExit("msgrcv failed");
+//    }
+//
+//    printf("%s\n", msg.content);
 
     /* Accesso alla memoria condivisa per il campo di gioco, la dimensione viene comunicata
      * dal server. */
@@ -96,24 +160,16 @@ int main(int argc, char * argv[]) {
     }
 
     struct shared_board * ptr_gb = shmat(shBoardID, 0, 0);
+
+    int row = ptr_gb->rows;
+    int col = ptr_gb->cols;
     //printf("<F4Client> rows: %d; cols: %d.\n", row, col);                 // debug
-    //printBoard(ptr_gb, row, col);                                         // debug
+    printBoard(ptr_gb, row, col);                                         // debug
 
-    /* Accesso alla memoria condivisa per il pid dei giocatori */
-    size_t pidSize = sizeof(struct shared_pid);
-    int shPidID = shmget(pidKey, pidSize, S_IRUSR);
-    if (shPidID == -1) {
-        errExit("shmget failed");
-    }
 
-    struct shared_pid * ptr_playersPid = shmat(shPidID, 0, 0);
 
     /* Attesa su semaforo della concessione del turno */
     printf("<F4Client> In attesa della connessione del giocatore 2.\n");
-    int semid = semget(semKey, 3, S_IRUSR | S_IWUSR);
-    if (semid == -1) {
-        errExit("semget failed");
-    }
 
     /* Se il processo corrente è il giocatore 2, libero il server dall'attesa
      * e attendo il turno, altrimenti il processo è il giocatore 1, che si mette
@@ -130,8 +186,14 @@ int main(int argc, char * argv[]) {
 
     /* Richiesta delle coordinate su cui inserire il token
      * e verifica della validita' */
+    char token;
     int r, c, flag = 1;
-    char token = msg.token;
+    if (getpid() == ptr_playersPid->player1) {
+        token = ptr_playersPid->player1Token;
+    }
+    if (getpid() == ptr_playersPid->player2) {
+        token = ptr_playersPid->player2Token;
+    }
 
     do {
         // Richiesta della casella di gioco
@@ -152,6 +214,7 @@ int main(int argc, char * argv[]) {
 
     printBoard(ptr_gb, row, col);
 
+    count_sig = 0;
     if (getpid() == ptr_playersPid->player1) {
         semOp(semid, 0, 1);         // passa il controllo al server
         semOp(semid, 1, -1);        // p1 attende il turno

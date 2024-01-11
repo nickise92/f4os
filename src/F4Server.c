@@ -22,7 +22,7 @@
 #define P1 0
 #define P2 1
 
-
+int count_sig = 0;
 
 /* Setup code dei messaggi fra server e giocatori */
 int msqSrv = -1;
@@ -32,25 +32,40 @@ int msqCli = -1;
 /* Handler del segnale di interruzione Ctrl+C */
 void sigHandler(int sig) {
 
-    if (msqSrv > 0) {
-        if(msgctl(msqSrv, IPC_RMID, NULL) == -1) {
-            errExit("msgctl failed");
-        } else {
-            printf("<Server> Coda di messaggi del server eliminata con successo.\n");
-        }
-    }
 
-    if (msqCli > 0) {
-        if (msgctl(msqCli, IPC_RMID, NULL) == -1) {
-            errExit("msgctl failed");
-        } else {
-            printf("<Server> Coda di messaggi del client eliminata con successo.\n");
-        }
+    if(++count_sig == 1) {
+        printf("Hai deciso di premere CTRL+C, se lo premi un altra volta faccio terminare il gioco!");
     }
-    exit(0);
+    else if(++count_sig == 2) {
+
+        printf("Hai deciso di premere due volte CTRL+C, ora faccio terminare il gioco!");
+
+        if (msqSrv > 0) {
+            if(msgctl(msqSrv, IPC_RMID, NULL) == -1) {
+                errExit("msgctl failed");
+            } else {
+                printf("<Server> Coda di messaggi del server eliminata con successo.\n");
+            }
+        }
+
+        if (msqCli > 0) {
+            if (msgctl(msqCli, IPC_RMID, NULL) == -1) {
+                errExit("msgctl failed");
+            } else {
+                printf("<Server> Coda di messaggi del client eliminata con successo.\n");
+            }
+        }
+        exit(0);
+    }
 }
 
 int main(int argc, char * argv[]) {
+
+    /* GESTIONE SIGINT (CTRL-C) */
+    if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        errExit("change signal handler failed");
+    }
+
 
     /* Chiavi per le code dei messaggi */
     key_t serverKey = 100; // Coda di ricezione dei  messaggi dal Client
@@ -62,6 +77,26 @@ int main(int argc, char * argv[]) {
 
     /* Chiave di accesso al semaforo */
     key_t semKey = 6060;
+
+    /********************** SEMAFORO REGOLATORE TURNI **********************/
+    /* Attesa su semaforo bloccante per dare il turno ai giocatori. Il giocatore
+     * 1 è bloccato finché non si connette il giocatore 2. Il server deve liberare
+     * il giocatore uno dopo la connessione del giocatore 2. Il giocatore 2 resterà
+     * bloccato fino al ritorno del controllo al server, che poi cederà il turno al
+     * giocatore 2.*/
+    // Creazione di 3 semafori
+    int semid = semget(semKey, 3, IPC_CREAT | S_IWUSR | S_IRUSR);
+    if (semid == -1) {
+        errExit("semget failed.");
+    }
+    // Inizializzazione del semaforo
+    unsigned short semInitVal[] = {[0]=0, [1]=0, [2]=0};
+    union semun arg;
+    arg.array = semInitVal;
+
+    if (semctl(semid, 0, SETALL, arg) == -1) {
+        errExit("semctl SETALL failed");
+    }
 
     /* Verifichiamo che il server sia avviato con il numero corretto di argomenti */
     if (argc < 5) {
@@ -98,6 +133,10 @@ int main(int argc, char * argv[]) {
             ptr_gb->board[i][j] = ' ';
         }
     }
+
+    ptr_gb->rows = row;
+    ptr_gb->cols = col;
+
     /********************** ALLOCAZIONE MEMORIA CONDIVISA PID GIOCATORI **********************/
     size_t pidSize = sizeof(struct shared_pid);
     int shPidID = shmget(pidKey, pidSize, IPC_CREAT | S_IRUSR | S_IWUSR);
@@ -137,76 +176,59 @@ int main(int argc, char * argv[]) {
     if (msgrcv(msqSrv, &msg, mSize, 0, 0) == -1) {
         errExit("msgrcv failed");
     }
-    char *name = msg.content;
+    strcpy(ptr_playersPid->player1Name, msg.content);
     ptr_playersPid->player1 = msg.pid;
+    ptr_playersPid->player1Token = argv[3][0];
 
-    // Invia un messaggio di connessione stabilita al giocatore 1 e comunica
-    // il suo simbolo di gioco
-    printf("<F4Server> Giocatore 1 connesso.\nNome: %s;\nPID: %d;\nGettone: %s;\n", name, ptr_playersPid->player1, argv[3]);
+    // Invia un messaggio di connessione stabilita al giocatore 1
+    printf("<F4Server> Giocatore 1 connesso.\nNome: %s;\nPID: %d;\nGettone: %c;\n", ptr_playersPid->player1Name, ptr_playersPid->player1, ptr_playersPid->player1Token);
+    semOp(semid, 1,+1);
 
     // INVIO
     /* Creiamo il messaggio per il giocatore 1, in cui confermiamo il suo gettone e
      * comunichiamo la dimensione della board di gioco */
-    char * response = "<F4Server> Connessione confermata, il tuo gettone e': ";
-    unsigned long len = strlen(response);
-    for (int i = 0; i < len; i++) {
-        msg.content[i] = response[i];
-    }
-    msg.content[len] = argv[3][0];
-    msg.content[len+1] = '\0';
-    msg.row = row;
-    msg.col = col;
-    msg.token = argv[3][0];
-
-    if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
-        errExit("msgsnd failed");
-    }
+//    char * response = "<F4Server> Connessione confermata, il tuo gettone e': ";
+//    unsigned long len = strlen(response);
+//    for (int i = 0; i < len; i++) {
+//        msg.content[i] = response[i];
+//    }
+//    msg.content[len] = argv[3][0];
+//    msg.content[len+1] = '\0';
+//    msg.row = row;
+//    msg.col = col;
+//    msg.token = ptr_playersPid->player1Token;
+//
+//    if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
+//        errExit("msgsnd failed");
+//    }
 
     /********************** GIOCATORE 2 **********************/
     // RICEZIONE
     if (msgrcv(msqSrv, &msg, mSize, 0, 0) == -1) {
         errExit("msgrcv failed");
     }
-    name = msg.content;
+    strcpy(ptr_playersPid->player2Name, msg.content);
     ptr_playersPid->player2 = msg.pid;
+    ptr_playersPid->player2Token = argv[4][0];
 
-    // Invia un messaggio di connessione stabilita al giocatore 1 e comunica
-    // il suo simbolo di gioco
-    printf("<F4Server> Giocatore 2 connesso.\nNome: %s;\nPID: %d;\nGettone: %s;\n", name, ptr_playersPid->player2, argv[4]);
-
+    // Invia un messaggio di connessione stabilita al giocatore 2
+    printf("<F4Server> Giocatore 2 connesso.\nNome: %s;\nPID: %d;\nGettone: %c;\n", ptr_playersPid->player2Name, ptr_playersPid->player2, ptr_playersPid->player2Token);
+    semOp(semid, 2,+1);
     // Creaiamo il messaggio per il giocatore 2.
-    for (int i = 0; i < len; i++) {
-        msg.content[i] = response[i];
-    }
-    msg.content[len] = argv[4][0];
-    msg.content[len+1] = '\0';
-    msg.row = row;
-    msg.col = col;
-    msg.token = argv[4][0];
+//    for (int i = 0; i < len; i++) {
+//        msg.content[i] = response[i];
+//    }
+//    msg.content[len] = argv[4][0];
+//    msg.content[len+1] = '\0';
+//    msg.row = row;
+//    msg.col = col;
+//    msg.token = ptr_playersPid->player2Token;
+//
+//    if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
+//        errExit("msgsnd failed");
+//    }
 
-    if (msgsnd(msqCli, &msg, mSize, 0) == -1) {
-        errExit("msgsnd failed");
-    }
 
-    /********************** SEMAFORO REGOLATORE TURNI **********************/
-    /* Attesa su semaforo bloccante per dare il turno ai giocatori. Il giocatore
-     * 1 è bloccato finché non si connette il giocatore 2. Il server deve liberare
-     * il giocatore uno dopo la connessione del giocatore 2. Il giocatore 2 resterà
-     * bloccato fino al ritorno del controllo al server, che poi cederà il turno al
-     * giocatore 2.*/
-    // Creazione di 3 semafori
-    int semid = semget(semKey, 3, IPC_CREAT | S_IWUSR | S_IRUSR);
-    if (semid == -1) {
-        errExit("semget failed.");
-    }
-    // Inizializzazione del semaforo
-    unsigned short semInitVal[] = {[0]=0, [1]=0, [2]=0};
-    union semun arg;
-    arg.array = semInitVal;
-
-    if (semctl(semid, 0, SETALL, arg) == -1) {
-        errExit("semctl SETALL failed");
-    }
 
     semOp(semid, (unsigned short) 0, -1);
     printf("<F4Server> Tutti i giocatori connessi! La partita può iniziare.\n");
@@ -215,6 +237,8 @@ int main(int argc, char * argv[]) {
     // Verifica lo stato della partita
     semOp(semid, (unsigned short)2, 1);     // turno giocatore 2
     semOp(semid, (unsigned short) 0, -1);   // attende
+
+
 
     /* Chiusura della shared_board memory */
     if (shmdt(ptr_gb) == -1) {
