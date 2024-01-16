@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdbool.h>
 
 struct shared_board {
     char board[100][100];
@@ -7,6 +8,7 @@ struct shared_board {
 };
 
 struct shared_pid {
+    bool first;
     char player1Name[100];
     pid_t player1;
     char player1Token;

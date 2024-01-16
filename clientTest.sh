@@ -1,2 +1,2 @@
-echo "Launching F4Server with test arguments Nick"
-./bin/F4Server Nick
+echo "Launching F4Client with test arguments Nick"
+./bin/F4Client Nick
