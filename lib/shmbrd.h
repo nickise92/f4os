@@ -17,7 +17,10 @@ struct shared_pid {
     char player2Token;
 };
 struct winning {
-    int flag1;  // == pid giocatore -> perde per abbandono
-    int flag2;  // giocatore 1 ha vinto =1
-    int flag3;  // giocatore 2 ha vinto =1
+    int playerLeft;     // == pid giocatore -> perde per abbandono
+    bool player1Win;    // giocatore 1 ha vinto =1
+    bool player2Win;    // giocatore 2 ha vinto =1
+    bool full;          // la matrice per il campo da gioco è piena
+                        // la partita finisce pari
+    bool end;
 };

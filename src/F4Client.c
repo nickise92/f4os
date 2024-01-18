@@ -26,6 +26,7 @@
 int count_sig = 0;
 struct shared_board *ptr_gb;
 struct shared_pid *ptr_playersPid;
+struct winning *ptr_winCheck;
 int semid;
 
 /* Funzioni & Procedure */
@@ -96,13 +97,8 @@ void sigHandler(int sig) {
             printf("<F4Server> Semafori rimossi con successo.\n");
         }
 
-        /* Invio del segnale di chiusura ai processi F4Client */
-        if (kill(ptr_playersPid->player1,SIGKILL) == -1 || kill(ptr_playersPid->player2,SIGKILL) == -1 ) {
-            errExit("kill failed");
-        } else {
-            printf("<F4Server> Tutti i giocatori sono usciti dalla partita!\n");
-            printf("<F4Server> Partita terminata!");
-        }
+        /* Informo il server che il processo client corrente ha abandonato */
+        ptr_winCheck->playerLeft = getpid();
         exit(0);
     }
 }
@@ -190,10 +186,9 @@ int main(int argc, char * argv[]) {
 
     /********************** TURNI **********************/
     int move;
-    int count = 0; // debug
     int flag;
+    bool endGame = false;
     do {
-        count++;
         /* Visualizzo la board per il giocatore */
         printBoard(ptr_gb, row, col);
         /* GIOCATORE 1 */
@@ -210,6 +205,7 @@ int main(int argc, char * argv[]) {
                     flag = 0;       // ho inserito il token nella colonna desiderata
                 }
             } while (flag);
+            printBoard(ptr_gb, row, col);
             /* Libero il server e attendo il turno */
             semOp(semid, 0, 1);
             semOp(semid, 1, -1);
@@ -225,15 +221,18 @@ int main(int argc, char * argv[]) {
                     flag = 0;       // ho inserito il token nella colonna desiderata
                 }
             } while(flag);
+            printBoard(ptr_gb, row, col);
             /* Libero il server e attendo il turno */
             semOp(semid, 0, 1);
             semOp(semid, 2, -1);
         }
-    } while (count < 4);
 
+    } while (!ptr_winCheck->end);
 
-    printBoard(ptr_gb, row, col);
-    count_sig = 0;
+    if (ptr_winCheck->player1Win) {
+        printf("<F4Client> %s ha vinto la partita!\n");
+    }
 
+    semOp(semid, 2, 1);     // libero il player 2;
     return 0;
 }
