@@ -34,6 +34,8 @@ bool endGame = false;
 /* Funzione di verifica vittoria o sconfitta */
 void checkGameStatus() {
     /* Verifico se un giocatore ha vinto */
+
+    // TODO: Vanno spostati nell'handler di gestione SIGINT e non qui
     // Caso di abbandono del gicatore 1:
     if (ptr_winCheck->playerLeft == ptr_playersPid->player1) {
         ptr_winCheck->player2Win = true;
@@ -336,25 +338,30 @@ int main(int argc, char * argv[]) {
         semOp(semid, (unsigned short) 0, -1);   // server attende
         printf("<F4Server> Controllo tornato al Server...\n");
         // Verifica lo stato della partita
+        printf("<F4Server> Verifica lo stato della partita...\n");
         checkGameStatus();
         semOp(semid, (unsigned short) 2, 1);     // turno giocatore 2
         printf("<F4Server> Turno di %s\n", ptr_playersPid->player2Name);
         semOp(semid, (unsigned short) 0, -1);   // server attende
         printf("<F4Server> Controllo tornato al Server...\n");
         // Verifica lo stato della partita
+        printf("<F4Server> Verifica lo stato della partita...\n");
         checkGameStatus();
 
          /* Continuo ad alternare i turni fin quando nella struttura "winning" ho
          * !true && false oppure false && !true, ovvero 1 giocatore avra' vinto e
          * l'altro no. */
-    } while ( !endGame /* (!ptr_winCheck->player1Win && ptr_winCheck->player2Win) ||
-              (ptr_winCheck->player1Win && !ptr_winCheck->player2Win) */);
+    } while (!endGame);
 
-    /* Il server comunica la terminazione della partita e attende che i client confermino */
-    ptr_winCheck->end = true;
-    semOp(semid, 1, 1); // libero player 1
-    semOp(semid, 0, -1);
-
+    /********************** TERMINAZIONE PARTITA E CHIUSURA SHARED MEMORY LATO SERVER **********************/
+    /* Libero il player 1 che deve comunicare che la partita e' terminata e chiudersi */
+    semOp(semid, (unsigned short) 1, 1);
+    /* Attendo il ritorno del controllo al Server */
+    semOp(semid, (unsigned short) 0, -1);
+    /* Libero il player 2 che comunica anch'esso la terminazione della partita e si chiude */
+    semOp(semid, (unsigned short) 2, 1);
+    /* Attendo il ritorno del controllo per eseguire la chiusura delle memorie condivise lato Server */
+    semOp(semid, (unsigned short) 0, -1);
 
     /* Chiusura della shared_board memory */
     if (shmdt(ptr_gb) == -1) {
@@ -366,6 +373,11 @@ int main(int argc, char * argv[]) {
         errExit("shmdt failed");
     } else {
         printf("<F4Server> Memoria condivisa giocatori rimossa con successo.\n");
+    }
+    if (shmdt(ptr_winCheck) == -1) {
+        errExit("shmdt failed");
+    } else {
+        printf("<F4Server> Memoria condivisa informazioni sullo stato della partita rimossa con successo.\n");
     }
 
     /* Rimozione dei semafori */

@@ -48,7 +48,9 @@ bool checkValidity(struct shared_board *ptr_sh, int col, int rows, char token) {
  * @param row numero di righe della matrice
  * @param col numero di colonne della matrice
  */
-void printBoard(struct shared_board  *ptr_sh, int row, int col) {
+void printBoard(struct shared_board  *ptr_sh) {
+    int row = ptr_sh->rows;
+    int col = ptr_sh->cols;
     for (int i = 0; i < row; i++) {
         for (int j = 0; j < col; j++) {
             if (j == 0) {
@@ -63,6 +65,7 @@ void printBoard(struct shared_board  *ptr_sh, int row, int col) {
     for (int i = 0; i < col; i++) {
         printf("  %d ", i);
     }
+    printf("\n");
 }
 
 /* Handler del segnale di interruzione Ctrl+C */
@@ -113,15 +116,15 @@ int main(int argc, char * argv[]) {
     /* VARIABILI LOCALI CLIENT */
 
     /* Chiavi per la memoria condivisa */
-    key_t boardKey = 5090; // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
-    key_t pidKey = 6050; // Chiave per l'accesso al pid dei giocatori.
+    key_t boardKey = 5090;  // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
+    key_t pidKey = 6050;    // Chiave per l'accesso al pid dei giocatori.
+    key_t winKey = 4070;    // Chiave per l'accesso alla struttura winning
 
-    /* Accesso alla memoria condivisa per il campo di gioco, la dimensione viene comunicata
-     * dal server. */
+    /* Accesso alla memoria condivisa per il campo di gioco */
     size_t boardSize = sizeof(struct shared_board);
     int shBoardID = shmget(boardKey, boardSize, S_IRUSR | S_IWUSR);
     if (shBoardID == -1) {
-        errExit("shmget failed");
+        errExit("shmget shared_board failed");
     }
 
     ptr_gb = shmat(shBoardID, 0, 0);
@@ -144,10 +147,19 @@ int main(int argc, char * argv[]) {
     size_t pidSize = sizeof(struct shared_pid);
     int shPidID = shmget(pidKey, pidSize, S_IRUSR);
     if (shPidID == -1) {
-        errExit("shmget failed");
+        errExit("shmget shared_pid failed");
     }
 
     ptr_playersPid = shmat(shPidID, 0, 0);
+
+    /* Accesso alla meomria condivisa per la verifica dello stato partita */
+    size_t winSize = sizeof(struct winning);
+    int shWinID = shmget(winKey, winSize, S_IRUSR);
+    if (shWinID == -1) {
+        errExit("shmget winning failed");
+    }
+
+    ptr_winCheck = shmat(shWinID, 0, 0);
 
     /* Verifica che il numero di argomenti al lancio del gioco sia corretto */
     if (argc < 2) {
@@ -189,10 +201,12 @@ int main(int argc, char * argv[]) {
     int flag;
     bool endGame = false;
     do {
+
         /* Visualizzo la board per il giocatore */
-        printBoard(ptr_gb, row, col);
-        /* GIOCATORE 1 */
-        if (getpid() == ptr_playersPid->player1) {
+        printBoard(ptr_gb);
+        /* GIOCATORE 1, se il game non e' stato vinto da nessuno, esegui la giocata */
+        if (getpid() == ptr_playersPid->player1 && !endGame) {
+
             printf("\n<%s::%d> Inserire la colonna di gioco: ",
                    ptr_playersPid->player1Name, ptr_playersPid->player1);
             do {
@@ -205,11 +219,14 @@ int main(int argc, char * argv[]) {
                     flag = 0;       // ho inserito il token nella colonna desiderata
                 }
             } while (flag);
-            printBoard(ptr_gb, row, col);
-            /* Libero il server e attendo il turno */
-            semOp(semid, 0, 1);
-            semOp(semid, 1, -1);
-        } else {    /* GIOCATORE 2 */
+            printBoard(ptr_gb);     // visualizzo la giocata appena eseguita
+            /* Libero il server che verifica se qualcuno ha vinto */
+            semOp(semid, (unsigned short)0, 1);
+            semOp(semid, (unsigned short) 1, -1);    // attendo il mio turno
+        }
+        /* GIOCATORE 2 */
+        if (getpid() == ptr_playersPid->player2 && !endGame) {
+
             printf("\n<%s::%d> Inserire la colonna di gioco: ",
                    ptr_playersPid->player2Name, ptr_playersPid->player2);
             do {
@@ -221,18 +238,31 @@ int main(int argc, char * argv[]) {
                     flag = 0;       // ho inserito il token nella colonna desiderata
                 }
             } while(flag);
-            printBoard(ptr_gb, row, col);
-            /* Libero il server e attendo il turno */
-            semOp(semid, 0, 1);
-            semOp(semid, 2, -1);
+            printBoard(ptr_gb);     // visualizzo la giocata appena eseguita
+            /* Libero il server che verifica se qualcuno ha vinto */
+            semOp(semid, (unsigned short)0, 1);
+            semOp(semid, (unsigned short) 2, -1);   // attendo il mio turno
         }
 
-    } while (!ptr_winCheck->end);
+        /* Verifico se qualcuno ha vinto prima di fare la giocata */
+        printf("<F4Client> Verifica vincitore...\n");
+        if (ptr_winCheck->player1Win || ptr_winCheck->player2Win || ptr_winCheck->full) {
+            printBoard(ptr_gb);
+            printf("<F4Client> Partita terminata!\n");
+            endGame = true;
+        } else {
+            printf("<F4Client> Nessun vincitore trovato. Esegui la tua mossa!\n");
+        }
+
+    } while (!endGame);
 
     if (ptr_winCheck->player1Win) {
-        printf("<F4Client> %s ha vinto la partita!\n");
+        printf("<F4Client> %s ha vinto la partita! %s ha perso!\n", ptr_playersPid->player1Name, ptr_playersPid->player2Name);
+    } else if (ptr_winCheck->player2Win) {
+        printf("<F4Client> %s ha vinto la partita! %s ha perso!\n", ptr_playersPid->player2Name, ptr_playersPid->player1Name);
+    } else if (ptr_winCheck->full) {
+        printf("Partita finita in parità. Campo di gioco pieno.\n");
     }
-
-    semOp(semid, 2, 1);     // libero il player 2;
+    semOp(semid, (unsigned short) 0, 1); // libero il server
     return 0;
 }

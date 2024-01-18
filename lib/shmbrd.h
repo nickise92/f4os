@@ -16,6 +16,7 @@ struct shared_pid {
     pid_t player2;
     char player2Token;
 };
+
 struct winning {
     int playerLeft;     // == pid giocatore -> perde per abbandono
     bool player1Win;    // giocatore 1 ha vinto =1
