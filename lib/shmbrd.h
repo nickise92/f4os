@@ -15,6 +15,7 @@ struct shared_pid {
     char player2Name[100];
     pid_t player2;
     char player2Token;
+    pid_t serverPid;
 };
 
 struct winning {

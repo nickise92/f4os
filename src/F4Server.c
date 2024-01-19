@@ -212,11 +212,55 @@ void sigHandler(int sig) {
     }
 }
 
+void sigPlayerLeft(int sig) {
+    printf("<F4Server> Un giocatore ha deciso di abbandonare la partita.\n");
+
+    /* Se il giocatore 1 ha abbandonato la partita, invio SIGUSR2 al giocatore 2 */
+    if (ptr_winCheck->playerLeft == ptr_playersPid->player1) {
+        if (kill(ptr_playersPid->player2, SIGUSR2) == SIG_ERR) {
+            errExit("kill failed");
+        }
+    }
+
+    /* Se il giocatore 2 ha abbandonato la partita, invio SIGUSR2 al giocatore 1 */
+    if (ptr_winCheck->playerLeft == ptr_playersPid->player2) {
+        if (kill(ptr_playersPid->player1, SIGUSR2) == SIG_ERR) {
+            errExit("kill failed");
+        }
+    }
+
+
+    /* Chiusura delle shared memory */
+    if (shmdt(ptr_playersPid) == -1) {
+        errExit("shmdt failed");
+    } else {
+        printf("<F4Server> Memoria condivisa delle info giocatori eliminata con successo.\n");
+    }
+
+    if (shmdt(ptr_gb) == -1) {
+        errExit("shmdt failed");
+    } else {
+        printf("<F4Server> Memoria condivisa del tabellone di gioco eliminata con successo.\n");
+    }
+
+    /* Chiusura dei semafori */
+    if (semctl(semid, 0, IPC_RMID, 0) == -1) {
+        errExit("semctl failed");
+    } else {
+        printf("<F4Server> Semafori rimossi con successo.\n");
+    }
+}
+
 int main(int argc, char * argv[]) {
 
     /* GESTIONE SIGINT (CTRL-C) */
     if (signal(SIGINT, sigHandler) == SIG_ERR) {
-        errExit("change signal handler failed");
+        errExit("change signal SIGINT handler failed");
+    }
+
+    /* Handler abbandono di un giocatore */
+    if (signal(SIGUSR1, sigPlayerLeft) == SIG_ERR) {
+        errExit("change signal SIGUSR1 handler failed");
     }
 
     /* Chiavi per la memoria condivisa */
@@ -297,6 +341,7 @@ int main(int argc, char * argv[]) {
     ptr_playersPid->player1 = -1;
     ptr_playersPid->player2 = -2;
     ptr_playersPid->first = true;
+    ptr_playersPid->serverPid = getpid();
 
     /********************** ALLOCAZIONE MEMORIA CONDIVISA STRUTTURA WINNING **********************/
     size_t winSize = sizeof(struct winning);

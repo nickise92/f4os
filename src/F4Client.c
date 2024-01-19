@@ -73,43 +73,43 @@ void sigHandler(int sig) {
     if (signal(SIGINT, sigHandler) == SIG_ERR) {
         errExit("signal handler failed");
     }
+
     if (count_sig == 0) {
         printf("<Server> Attenzione pressione CTRL+C rilevata. Un'ulteriore pressione comporta la chiusura del gioco!\n");
         count_sig++;
-    }
-    else if (count_sig == 1) {
+    } else if (count_sig == 1) {
         printf("<F4Server> Gioco terminato dal Server.\n");
-
-        /* Chiusura delle shared memory */
-        if (shmdt(ptr_playersPid) == -1) {
-            errExit("shmdt failed");
-        } else {
-            printf("<F4Server> Memoria condivisa delle info giocatori eliminata con successo.\n");
-        }
-
-        if (shmdt(ptr_gb) == -1) {
-            errExit("shmdt failed");
-        } else {
-            printf("<F4Server> Memoria condivisa del tabellone di gioco eliminata con successo.\n");
-        }
-
-        /* Chiusura dei semafori */
-        if (semctl(semid, 0, IPC_RMID, 0) == -1) {
-            errExit("semctl failed");
-        } else {
-            printf("<F4Server> Semafori rimossi con successo.\n");
-        }
 
         /* Informo il server che il processo client corrente ha abandonato */
         ptr_winCheck->playerLeft = getpid();
+        if (kill(ptr_playersPid->serverPid, SIGUSR1) == -1) {
+            errExit("kill SIGUSR1 failed");
+        }
+
         exit(0);
     }
+}
+
+void sigHandlerPlayerLeft(int sig) {
+
+    if (ptr_playersPid->player1 == ptr_winCheck->playerLeft) {
+        printf("<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player1Name);
+    } else {
+        printf("<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player2Name);
+    }
+
+    exit(0);
 }
 
 int main(int argc, char * argv[]) {
 
     /* Handler CTRL-C */
     if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        errExit("signal handler failed");
+    }
+
+    /* Handler abbandono partita di un giocatore */
+    if (signal(SIGUSR2, sigHandlerPlayerLeft) == SIG_ERR) {
         errExit("signal handler failed");
     }
 
