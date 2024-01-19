@@ -49,10 +49,9 @@ bool checkValidity(struct shared_board *ptr_sh, int col, int rows, char token) {
  * @param col numero di colonne della matrice
  */
 void printBoard(struct shared_board  *ptr_sh) {
-    int row = ptr_sh->rows;
-    int col = ptr_sh->cols;
-    for (int i = 0; i < row; i++) {
-        for (int j = 0; j < col; j++) {
+
+    for (int i = 0; i <  ptr_sh->rows; i++) {
+        for (int j = 0; j < ptr_sh->cols; j++) {
             if (j == 0) {
                 printf("| %c |", ptr_sh->board[i][j]);
             } else {
@@ -62,7 +61,7 @@ void printBoard(struct shared_board  *ptr_sh) {
         printf("\n");
     }
     // stampo il numero delle colonne sotto al tabellone
-    for (int i = 0; i < col; i++) {
+    for (int i = 0; i < ptr_sh->cols; i++) {
         printf("  %d ", i);
     }
     printf("\n");
@@ -128,9 +127,7 @@ int main(int argc, char * argv[]) {
     }
 
     ptr_gb = shmat(shBoardID, 0, 0);
-
-    int row = ptr_gb->rows;
-    int col = ptr_gb->cols;
+    
     //printf("<F4Client> rows: %d; cols: %d.\n", row, col);                 // debug
     //printBoard(ptr_gb, row, col);                                     // debug
 

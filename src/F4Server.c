@@ -204,14 +204,14 @@ void sigPlayerLeft(int sig) {
 
     /* Se il giocatore 1 ha abbandonato la partita, invio SIGUSR2 al giocatore 2 */
     if (ptr_winCheck->playerLeft == ptr_playersPid->player1) {
-        if (kill(ptr_playersPid->player2, SIGUSR2) == SIG_ERR) {
+        if (kill(ptr_playersPid->player2, SIGUSR2) == -1) {
             errExit("kill failed");
         }
     }
 
     /* Se il giocatore 2 ha abbandonato la partita, invio SIGUSR2 al giocatore 1 */
     if (ptr_winCheck->playerLeft == ptr_playersPid->player2) {
-        if (kill(ptr_playersPid->player1, SIGUSR2) == SIG_ERR) {
+        if (kill(ptr_playersPid->player1, SIGUSR2) == -1) {
             errExit("kill failed");
         }
     }
