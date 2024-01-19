@@ -33,24 +33,7 @@ bool endGame = false;
 
 /* Funzione di verifica vittoria o sconfitta */
 void checkGameStatus() {
-    /* Verifico se un giocatore ha vinto */
 
-    // TODO: Vanno spostati nell'handler di gestione SIGINT e non qui
-    // Caso di abbandono del gicatore 1:
-    if (ptr_winCheck->playerLeft == ptr_playersPid->player1) {
-        ptr_winCheck->player2Win = true;
-        ptr_winCheck->player1Win = false;
-        printf("<F4Server> %s vince per abbandono di %s.\n", ptr_playersPid->player2Name, ptr_playersPid->player1Name);
-    }
-
-    // Caso di abbandono del giocatore 2:
-    if (ptr_winCheck->playerLeft == ptr_playersPid->player2) {
-        ptr_winCheck->player2Win = false;
-        ptr_winCheck->player1Win = true;
-        printf("<F4Server> %s vince per abbandono di %s.\n", ptr_playersPid->player1Name, ptr_playersPid->player2Name);
-    }
-
-    /* Verifica di vincita */
     // Verifica colonne
     printf("<F4Server> Verifico le colonne...\n");
 
@@ -101,72 +84,76 @@ void checkGameStatus() {
         count = 1;
     }
 
-    /* Verifico tutte le righe partendo dalla prima (indice i piu' alto) */
-    printf("<F4Server> Verifico le righe...\n");
+    if (flag) {
+        /* Verifico tutte le righe partendo dalla prima (indice i piu' alto) */
+        printf("<F4Server> Verifico le righe...\n");
 
-    // Aggiorno valori indici di controllo
-    j = 0;
-    k = 1;
-    i = ptr_gb->rows - 1;
-    count = 1;
-    /* Nota: non serve reimpostare flag = true, perché se arrivo a questo punto
-     * e non ho trovato colonne vincenti devo verificare le righe. Se ho già
-     * trovato delle colonne vincenti, non devo entrare nel ciclo di verifica
-     * delle righe perché ho già trovato un vincitore. */
-
-    while (i >= 0 && flag) {
-        token = ptr_gb->board[i][j];
-        while (j + k <= ptr_gb->cols && flag) {
-            /* Verifichiamo tutte le colonne nella riga corrente */
-            if (ptr_gb->board[i][j+k] == token) {
-                count++;
-                k++;
-            } else {
-                count = 1;
-                j = j + k;
-                token = ptr_gb->board[i][j];
-                k = 1;
-            }
-
-            if (count == 4 && token != ' ') {
-                if (token == ptr_playersPid->player1Token) {
-                    printf("<F4Server> Il vincitore è %s!\n", ptr_playersPid->player1Name);
-                    ptr_winCheck->player1Win = true;
-                    ptr_winCheck->player2Win = false;
-                    endGame = true;
-                } else if (token == ptr_playersPid->player2Token) {
-                    printf("<F4Server> Il vincitore è %s!\n", ptr_playersPid->player2Name);
-                    ptr_winCheck->player1Win = false;
-                    ptr_winCheck->player2Win = true;
-                    endGame = true;
-                }
-
-                flag = false;
-            }
-        }
-
-         /* Ripristino gli indici di controllo per la
-         * verifica della riga successiva */
-        i--;
+        // Aggiorno valori indici di controllo
         j = 0;
         k = 1;
+        i = ptr_gb->rows - 1;
         count = 1;
-    }
+        /* Nota: non serve reimpostare flag = true, perché se arrivo a questo punto
+         * e non ho trovato colonne vincenti devo verificare le righe. Se ho già
+         * trovato delle colonne vincenti, non devo entrare nel ciclo di verifica
+         * delle righe perché ho già trovato un vincitore. */
 
-    /* Se il flag è ancora a true, nessuna riga e nessuna colonna sono vincenti.
-     * Verifichiamo se la matrice è piena o se è ancora possibile giocare */
-    for (i = ptr_gb->rows - 1 && !ptr_winCheck->full; i >= 0; i--) {
-        for (j = 0; j < ptr_gb->cols; j++) {
-            if (ptr_gb->board[i][j] == ' ') {
-                ptr_winCheck->full = false;
+        while (i >= 0 && flag) {
+
+            token = ptr_gb->board[i][j];
+            while (j + k <= ptr_gb->cols && flag) {
+                /* Verifichiamo tutte le colonne nella riga corrente */
+                if (ptr_gb->board[i][j+k] == token) {
+                    count++;
+                    k++;
+                } else {
+                    count = 1;
+                    j = j + k;
+                    token = ptr_gb->board[i][j];
+                    k = 1;
+                }
+
+                if (count == 4 && token != ' ') {
+                    if (token == ptr_playersPid->player1Token) {
+                        printf("<F4Server> Il vincitore è %s!\n", ptr_playersPid->player1Name);
+                        ptr_winCheck->player1Win = true;
+                        ptr_winCheck->player2Win = false;
+                        endGame = true;
+                    } else if (token == ptr_playersPid->player2Token) {
+                        printf("<F4Server> Il vincitore è %s!\n", ptr_playersPid->player2Name);
+                        ptr_winCheck->player1Win = false;
+                        ptr_winCheck->player2Win = true;
+                        endGame = true;
+                    }
+
+                    flag = false;
+                }
             }
+
+            /* Ripristino gli indici di controllo per la
+            * verifica della riga successiva */
+            i--;
+            j = 0;
+            k = 1;
+            count = 1;
+        }
+
+        /* Se il flag è ancora a true, nessuna riga e nessuna colonna sono vincenti.
+         * Verifichiamo se la matrice è piena o se è ancora possibile giocare */
+        for (i = ptr_gb->rows - 1 && !ptr_winCheck->full; i >= 0; i--) {
+            for (j = 0; j < ptr_gb->cols; j++) {
+                if (ptr_gb->board[i][j] == ' ') {
+                    ptr_winCheck->full = false;
+                }
+            }
+        }
+
+        if (ptr_winCheck->full) {
+            printf("<F4Server> Il campo di gioco è pieno. La partita finisce pari.\n");
+            endGame = true;
         }
     }
 
-    if (ptr_winCheck->full) {
-        printf("<F4Server> Il campo di gioco è pieno. La partita finisce pari.\n");
-        endGame = true;
-    }
 }
 
 /* Handler del segnale di interruzione Ctrl+C */
@@ -175,11 +162,11 @@ void sigHandler(int sig) {
         errExit("signal handler failed");
     }
     if (count_sig == 0) {
-        printf("<Server> Attenzione pressione CTRL+C rilevata. Un'ulteriore pressione comporta la chiusura del gioco!\n");
+        printf("\n<Server> Attenzione pressione CTRL+C rilevata. Un'ulteriore pressione comporta la chiusura del gioco!\n");
         count_sig++;
     }
     else if (count_sig == 1) {
-        printf("<F4Server> Gioco terminato dal Server.\n");
+        printf("\n<F4Server> Gioco terminato dal Server.\n");
 
         /* Chiusura delle shared memory */
         if (shmdt(ptr_playersPid) == -1) {
@@ -385,14 +372,16 @@ int main(int argc, char * argv[]) {
         // Verifica lo stato della partita
         printf("<F4Server> Verifica lo stato della partita...\n");
         checkGameStatus();
-        semOp(semid, (unsigned short) 2, 1);     // turno giocatore 2
-        printf("<F4Server> Turno di %s\n", ptr_playersPid->player2Name);
-        semOp(semid, (unsigned short) 0, -1);   // server attende
-        printf("<F4Server> Controllo tornato al Server...\n");
-        // Verifica lo stato della partita
-        printf("<F4Server> Verifica lo stato della partita...\n");
-        checkGameStatus();
 
+        if (!endGame) {
+            semOp(semid, (unsigned short) 2, 1);     // turno giocatore 2
+            printf("<F4Server> Turno di %s\n", ptr_playersPid->player2Name);
+            semOp(semid, (unsigned short) 0, -1);   // server attende
+            printf("<F4Server> Controllo tornato al Server...\n");
+            // Verifica lo stato della partita
+            printf("<F4Server> Verifica lo stato della partita...\n");
+            checkGameStatus();
+        }
          /* Continuo ad alternare i turni fin quando nella struttura "winning" ho
          * !true && false oppure false && !true, ovvero 1 giocatore avra' vinto e
          * l'altro no. */
@@ -408,21 +397,33 @@ int main(int argc, char * argv[]) {
     /* Attendo il ritorno del controllo per eseguire la chiusura delle memorie condivise lato Server */
     semOp(semid, (unsigned short) 0, -1);
 
-    /* Chiusura della shared_board memory */
+    /* Detach della shared_board memory */
     if (shmdt(ptr_gb) == -1) {
         errExit("shmdt failed");
     } else {
-        printf("<F4Server> Memoria condivisa tabellone rimossa con successo.\n");
+        if (shmctl(shBoardID, IPC_RMID, NULL) == -1) {
+            errExit("shmctl failed");
+        } else {
+            printf("<F4Server> Memoria condivisa tabellone rimossa con successo.\n");
+        }
     }
     if (shmdt(ptr_playersPid) == -1) {
         errExit("shmdt failed");
     } else {
-        printf("<F4Server> Memoria condivisa giocatori rimossa con successo.\n");
+        if (shmctl(shPidID, IPC_RMID, NULL) == -1) {
+            errExit("shmctl failed");
+        } else {
+            printf("<F4Server> Memoria condivisa giocatori rimossa con successo.\n");
+        }
     }
     if (shmdt(ptr_winCheck) == -1) {
         errExit("shmdt failed");
     } else {
-        printf("<F4Server> Memoria condivisa informazioni sullo stato della partita rimossa con successo.\n");
+        if (shmctl(shWinID, IPC_RMID, NULL) == -1) {
+            errExit("shmctl failed");
+        } else {
+            printf("<F4Server> Memoria condivisa informazioni sullo stato della partita rimossa con successo.\n");
+        }
     }
 
     /* Rimozione dei semafori */

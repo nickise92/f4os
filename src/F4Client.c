@@ -75,10 +75,10 @@ void sigHandler(int sig) {
     }
 
     if (count_sig == 0) {
-        printf("<Server> Attenzione pressione CTRL+C rilevata. Un'ulteriore pressione comporta la chiusura del gioco!\n");
+        printf("\n<F4Server> Attenzione pressione CTRL+C rilevata. Un'ulteriore pressione comporta la chiusura del gioco!\n");
         count_sig++;
     } else if (count_sig == 1) {
-        printf("<F4Server> Gioco terminato dal Server.\n");
+        printf("\n<F4Server> Gioco terminato dal Server.\n");
 
         /* Informo il server che il processo client corrente ha abandonato */
         ptr_winCheck->playerLeft = getpid();
@@ -93,9 +93,9 @@ void sigHandler(int sig) {
 void sigHandlerPlayerLeft(int sig) {
 
     if (ptr_playersPid->player1 == ptr_winCheck->playerLeft) {
-        printf("<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player1Name);
+        printf("\n<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player1Name);
     } else {
-        printf("<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player2Name);
+        printf("\n<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player2Name);
     }
 
     exit(0);
@@ -221,7 +221,7 @@ int main(int argc, char * argv[]) {
             } while (flag);
             printBoard(ptr_gb);     // visualizzo la giocata appena eseguita
             /* Libero il server che verifica se qualcuno ha vinto */
-            semOp(semid, (unsigned short)0, 1);
+            semOp(semid, (unsigned short) 0, 1);
             semOp(semid, (unsigned short) 1, -1);    // attendo il mio turno
         }
         /* GIOCATORE 2 */
@@ -240,7 +240,7 @@ int main(int argc, char * argv[]) {
             } while(flag);
             printBoard(ptr_gb);     // visualizzo la giocata appena eseguita
             /* Libero il server che verifica se qualcuno ha vinto */
-            semOp(semid, (unsigned short)0, 1);
+            semOp(semid, (unsigned short) 0, 1);
             semOp(semid, (unsigned short) 2, -1);   // attendo il mio turno
         }
 

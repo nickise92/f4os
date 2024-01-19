@@ -1,6 +1,6 @@
 SERVER=bin/F4Server
 CLIENT=bin/F4Client
-CFLAGS=-Wall -std=c99
+CFLAGS=-Wall -std=gnu99
 INCLUDES=-I./lib
 
 SRCS_SERVER=src/errExit.c src/F4Server.c src/semaphore.c
