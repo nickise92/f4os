@@ -57,7 +57,7 @@ void printBoard(struct shared_board  *ptr_sh) {
         printf("\n");
     }
     // stampo il numero delle colonne sotto al tabellone
-    for (int i = 0; i < ptr_sh->cols; i++) {
+    for (int i = 1; i <= ptr_sh->cols; i++) {
         printf("  %d ", i);
     }
     printf("\n");
@@ -203,7 +203,7 @@ int main(int argc, char * argv[]) {
             do {
                 flag = 1;
                 scanf("%d", &move);
-
+                move = move - 1;
                 if (!checkValidity(ptr_gb, move, ptr_gb->rows, ptr_playersPid->player1Token)) {
                     printf("<F4Client> Colonna non valida, riprova: ");
                 } else {
@@ -224,6 +224,7 @@ int main(int argc, char * argv[]) {
             do {
                 flag = 1;
                 scanf("%d", &move);
+                move = move - 1;
                 if (!checkValidity(ptr_gb, move, ptr_gb->rows, ptr_playersPid->player2Token)) {
                     printf("<F4Client> Colonna non valida, riprova: ");
                 } else {
