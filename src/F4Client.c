@@ -10,10 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <sys/shm.h>
 #include <sys/stat.h>
-#include <sys/msg.h>
 #include <sys/sem.h>
 #include <signal.h>
 
@@ -43,10 +41,8 @@ bool checkValidity(struct shared_board *ptr_sh, int col, int rows, char token) {
     return false;
 }
 
-/* Il Client e' responsabile della stampa del campo di gioco
- * @param ptr_sh matrice in memoria condivisa che rappresenta il campo
- * @param row numero di righe della matrice
- * @param col numero di colonne della matrice
+/* Il Client è responsabile della stampa del campo di gioco 'ptr_sh' è il puntatore
+ * alla matrice in memoria condivisa che rappresenta il tabellone
  */
 void printBoard(struct shared_board  *ptr_sh) {
 
@@ -115,7 +111,7 @@ int main(int argc, char * argv[]) {
     /* VARIABILI LOCALI CLIENT */
 
     /* Chiavi per la memoria condivisa */
-    key_t boardKey = 5090;  // Chiave per lo spazio di memoria condivisa su cui e' presente il campo di gioco
+    key_t boardKey = 5090;  // Chiave per lo spazio di memoria condivisa su cui è presente il campo di gioco
     key_t pidKey = 6050;    // Chiave per l'accesso al pid dei giocatori.
     key_t winKey = 4070;    // Chiave per l'accesso alla struttura winning
 
@@ -127,9 +123,6 @@ int main(int argc, char * argv[]) {
     }
 
     ptr_gb = shmat(shBoardID, 0, 0);
-
-    //printf("<F4Client> rows: %d; cols: %d.\n", row, col);                 // debug
-    //printBoard(ptr_gb, row, col);                                     // debug
 
     /* Chiave di accesso del semaforo */
     key_t semKey = 6060;
@@ -163,7 +156,7 @@ int main(int argc, char * argv[]) {
         const char *msg = "Errore! Inserire il nome utente per avviare una sessione di gioco\n";
         errExit(msg);
     }
-    /* Verifichiamo se il client corrente e' il primo giocatore: nel caso
+    /* Verifichiamo se il client corrente è il primo giocatore: nel caso
      * in cui 'first' nella shared memory sia true, abbiamo il giocatore 1*/
     if (ptr_playersPid->first) {
         ptr_playersPid->first = false;
@@ -202,7 +195,7 @@ int main(int argc, char * argv[]) {
         count_sig = 0;
         /* Visualizzo la board per il giocatore */
         printBoard(ptr_gb);
-        /* GIOCATORE 1, se il game non e' stato vinto da nessuno, esegui la giocata */
+        /* GIOCATORE 1, se il game non è stato vinto da nessuno, esegui la giocata */
         if (getpid() == ptr_playersPid->player1 && !endGame) {
 
             printf("\n<%s::%d> Inserire la colonna di gioco: ",

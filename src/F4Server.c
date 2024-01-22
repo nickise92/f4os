@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/shm.h>
 #include <sys/msg.h>
@@ -28,8 +27,56 @@ struct shared_pid *ptr_playersPid;
 struct shared_board *ptr_gb;
 struct winning *ptr_winCheck;
 int semid;
+int shBoardID;
+int shPidID;
+int shWinID;
 bool endGame = false;
 
+
+/* Gestore delle operazioni di chiusura del gioco */
+void closeGameProcedure() {
+    /* Detach della shared_board memory */
+    if (shmdt(ptr_gb) == -1) {
+        errExit("shmdt failed");
+    } else {
+        /* Rimozione della shared memory */
+        if (shmctl(shBoardID, IPC_RMID, NULL) == -1) {
+            errExit("shmctl failed");
+        } else {
+            printf("<F4Server> Memoria condivisa tabellone rimossa con successo.\n");
+        }
+    }
+    /* Detach delle informazioni dei giocatori condivise */
+    if (shmdt(ptr_playersPid) == -1) {
+        errExit("shmdt failed");
+    } else {
+        /* Rimozione della shared memory */
+        if (shmctl(shPidID, IPC_RMID, NULL) == -1) {
+            errExit("shmctl failed");
+        } else {
+            printf("<F4Server> Memoria condivisa giocatori rimossa con successo.\n");
+        }
+    }
+
+    /* Detach della struttura winning */
+    if (shmdt(ptr_winCheck) == -1) {
+        errExit("shmdt failed");
+    } else {
+        /* Rimozione della shared memory */
+        if (shmctl(shWinID, IPC_RMID, NULL) == -1) {
+            errExit("shmctl failed");
+        } else {
+            printf("<F4Server> Memoria condivisa informazioni sullo stato della partita rimossa con successo.\n");
+        }
+    }
+
+    /* Rimozione dei semafori */
+    if (semctl(semid, 0, IPC_RMID, 0) == -1) {
+        errExit("semctl failed");
+    } else {
+        printf("<F4Server> Semafori rimossi con successo.\n");
+    }
+}
 
 /* Funzione di verifica vittoria o sconfitta */
 void checkGameStatus() {
@@ -168,25 +215,8 @@ void sigHandler(int sig) {
     else if (count_sig == 1) {
         printf("\n<F4Server> Gioco terminato dal Server.\n");
 
-        /* Chiusura delle shared memory */
-        if (shmdt(ptr_playersPid) == -1) {
-            errExit("shmdt failed");
-        } else {
-            printf("<F4Server> Memoria condivisa delle info giocatori eliminata con successo.\n");
-        }
-
-        if (shmdt(ptr_gb) == -1) {
-            errExit("shmdt failed");
-        } else {
-            printf("<F4Server> Memoria condivisa del tabellone di gioco eliminata con successo.\n");
-        }
-
-        /* Chiusura dei semafori */
-        if (semctl(semid, 0, IPC_RMID, 0) == -1) {
-            errExit("semctl failed");
-        } else {
-            printf("<F4Server> Semafori rimossi con successo.\n");
-        }
+        /* Chiusura di shared memory e semafori */
+        closeGameProcedure();
 
         /* Invio del segnale di chiusura ai processi F4Client */
         if (kill(ptr_playersPid->player1,SIGKILL) == -1 || kill(ptr_playersPid->player2,SIGKILL) == -1 ) {
@@ -199,6 +229,7 @@ void sigHandler(int sig) {
     }
 }
 
+/* Handler del segnale di interruzione Ctrl+C */
 void sigPlayerLeft(int sig) {
     printf("<F4Server> Un giocatore ha deciso di abbandonare la partita.\n");
 
@@ -216,26 +247,8 @@ void sigPlayerLeft(int sig) {
         }
     }
 
-
-    /* Chiusura delle shared memory */
-    if (shmdt(ptr_playersPid) == -1) {
-        errExit("shmdt failed");
-    } else {
-        printf("<F4Server> Memoria condivisa delle info giocatori eliminata con successo.\n");
-    }
-
-    if (shmdt(ptr_gb) == -1) {
-        errExit("shmdt failed");
-    } else {
-        printf("<F4Server> Memoria condivisa del tabellone di gioco eliminata con successo.\n");
-    }
-
-    /* Chiusura dei semafori */
-    if (semctl(semid, 0, IPC_RMID, 0) == -1) {
-        errExit("semctl failed");
-    } else {
-        printf("<F4Server> Semafori rimossi con successo.\n");
-    }
+    /* Chiusura delle shared memory e dei semafori */
+    closeGameProcedure();
 }
 
 int main(int argc, char * argv[]) {
@@ -300,7 +313,7 @@ int main(int argc, char * argv[]) {
     /********************** ALLOCAZIONE MEMORIA CONDIVISA TABELLONE **********************/
     // Associo alla memoria condivisa il campo di gioco
     size_t boardSize = sizeof(struct shared_board);
-    int shBoardID = shmget(boardKey, boardSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+    shBoardID = shmget(boardKey, boardSize, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (shBoardID == -1) {
         errExit("shmget board failed");
     }
@@ -319,7 +332,7 @@ int main(int argc, char * argv[]) {
 
     /********************** ALLOCAZIONE MEMORIA CONDIVISA PID GIOCATORI **********************/
     size_t pidSize = sizeof(struct shared_pid);
-    int shPidID = shmget(pidKey, pidSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+    shPidID = shmget(pidKey, pidSize, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (shPidID == -1) {
         errExit("shmget players failed");
     }
@@ -332,7 +345,7 @@ int main(int argc, char * argv[]) {
 
     /********************** ALLOCAZIONE MEMORIA CONDIVISA STRUTTURA WINNING **********************/
     size_t winSize = sizeof(struct winning);
-    int shWinID = shmget(winKey, winSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+    shWinID = shmget(winKey, winSize, IPC_CREAT | S_IRUSR | S_IWUSR);
     if (shWinID == -1) {
         errExit("shmget winning failed");
     }
@@ -388,7 +401,7 @@ int main(int argc, char * argv[]) {
     } while (!endGame);
 
     /********************** TERMINAZIONE PARTITA E CHIUSURA SHARED MEMORY LATO SERVER **********************/
-    /* Libero il player 1 che deve comunicare che la partita e' terminata e chiudersi */
+    /* Libero il player 1 che deve comunicare che la partita è terminata e chiudersi */
     semOp(semid, (unsigned short) 1, 1);
     /* Attendo il ritorno del controllo al Server */
     semOp(semid, (unsigned short) 0, -1);
@@ -397,41 +410,7 @@ int main(int argc, char * argv[]) {
     /* Attendo il ritorno del controllo per eseguire la chiusura delle memorie condivise lato Server */
     semOp(semid, (unsigned short) 0, -1);
 
-    /* Detach della shared_board memory */
-    if (shmdt(ptr_gb) == -1) {
-        errExit("shmdt failed");
-    } else {
-        if (shmctl(shBoardID, IPC_RMID, NULL) == -1) {
-            errExit("shmctl failed");
-        } else {
-            printf("<F4Server> Memoria condivisa tabellone rimossa con successo.\n");
-        }
-    }
-    if (shmdt(ptr_playersPid) == -1) {
-        errExit("shmdt failed");
-    } else {
-        if (shmctl(shPidID, IPC_RMID, NULL) == -1) {
-            errExit("shmctl failed");
-        } else {
-            printf("<F4Server> Memoria condivisa giocatori rimossa con successo.\n");
-        }
-    }
-    if (shmdt(ptr_winCheck) == -1) {
-        errExit("shmdt failed");
-    } else {
-        if (shmctl(shWinID, IPC_RMID, NULL) == -1) {
-            errExit("shmctl failed");
-        } else {
-            printf("<F4Server> Memoria condivisa informazioni sullo stato della partita rimossa con successo.\n");
-        }
-    }
-
-    /* Rimozione dei semafori */
-    if (semctl(semid, 0, IPC_RMID, 0) == -1) {
-        errExit("semctl failed");
-    } else {
-        printf("<F4Server> Semafori rimossi con successo.\n");
-    }
+    closeGameProcedure(shBoardID, shPidID, shWinID);
 
     return 0;
 }
