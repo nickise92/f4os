@@ -127,7 +127,7 @@ int main(int argc, char * argv[]) {
     }
 
     ptr_gb = shmat(shBoardID, 0, 0);
-    
+
     //printf("<F4Client> rows: %d; cols: %d.\n", row, col);                 // debug
     //printBoard(ptr_gb, row, col);                                     // debug
 
@@ -199,6 +199,7 @@ int main(int argc, char * argv[]) {
     bool endGame = false;
     do {
 
+        count_sig = 0;
         /* Visualizzo la board per il giocatore */
         printBoard(ptr_gb);
         /* GIOCATORE 1, se il game non e' stato vinto da nessuno, esegui la giocata */
@@ -221,6 +222,7 @@ int main(int argc, char * argv[]) {
             semOp(semid, (unsigned short) 0, 1);
             semOp(semid, (unsigned short) 1, -1);    // attendo il mio turno
         }
+
         /* GIOCATORE 2 */
         if (getpid() == ptr_playersPid->player2 && !endGame) {
 
