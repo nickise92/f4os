@@ -1,8 +1,6 @@
-/**********************************8
+/**********************************
  * VR456714,
- * Niccolo' Iselle
- * VR455975,
- * Pietro Bianchedi
+ * Niccolò Iselle
  * 2023-11-16
  */
 #include <stdio.h>

@@ -1,3 +1,10 @@
+/**********************************
+ * VR456714,
+ * Niccolò Iselle
+ * 2023-11-16
+ */
+
+
 #ifndef F4OS_SEMAPHORE_H
 #define F4OS_SEMAPHORE_H
 

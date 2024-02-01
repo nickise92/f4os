@@ -1,4 +1,8 @@
-// Created by nick on 17/11/2023.
+/**********************************
+ * VR456714,
+ * Niccolò Iselle
+ * 2023-11-16
+ */
 #include <stdlib.h>
 
 struct message {

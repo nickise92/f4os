@@ -1,3 +1,9 @@
+/**********************************
+ * VR456714,
+ * Niccolò Iselle
+ * 2023-11-16
+ */
+
 #ifndef _ERREXIT_HH
 #define _ERREXIT_HH
 
