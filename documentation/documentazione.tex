@@ -1,62 +1,416 @@
-\documentclass[a4paper,12pt,twoside]{report}
-\usepackage{fancyhdr}
+\documentclass[a4paper,11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[italian]{babel}
 \usepackage{amsmath}
-\usepackage{mathtools}
-\usepackage{listings}
 \usepackage{amssymb}
-\usepackage{cancel}
-\usepackage{tikz}
-\usetikzlibrary{angles, quotes}
-\usepackage{tikz-3dplot}
-\usepackage{mathptmx}
-\usepackage{tzplot}
-\newcommand{\taninv}{\tan^{-1}}
-\usepackage{titlesec}
-\usepackage{algpseudocode}
+\usepackage{listings}
 \usepackage{multicol}
-\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{listings}
+\usepackage{titlesec}
 
-\graphicspath{ {./img/} }
+\definecolor{codecomment}{rgb}{0.54,0.25,0.27}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codestring}{rgb}{0.0, 0.5, 0.0}
+\definecolor{backcolour}{rgb}{0.96,0.94,0.94}
 
+\lstdefinestyle{mystyle}{
+	backgroundcolor=\color{backcolour},
+	commentstyle=\color{codecomment},
+	keywordstyle=\color{blue},
+	numberstyle=\tiny\color{codegray},
+	stringstyle=\color{codestring},
+	basicstyle=\ttfamily\footnotesize,
+	breakatwhitespace=false,
+	breaklines=true,
+	captionpos=b,
+	keepspaces=true,
+	numbers=left,
+	numbersep=5pt,
+	showspaces=false,
+	showstringspaces=false,
+	showtabs=fals,
+	tabsize=2
+}
+
+\lstset{style=mystyle}
 
 \titleformat{\chapter}
-	{\Large\bfseries} 	% format
-	{}							% label
-	{0pt}						% sep
-	{\huge}					% before-code
-	 
-	 
+	{\Large\bfseries}
+	{}
+	{0pt}
+	{\huge}
+
 \begin{document}
-\title{Documentazione del progetto di Sistemi Operativi
-
-A.A. 2022/2023}
-\author{Pietro BIANCHEDI, Niccolò ISELLE}
-\date{}
+\title{Documentazione Progetto FORZA 4}
+\author{Pietro BIANCHEDI VR455975; Niccol\`o ISELLE VR456714}
+\date{A.A. 2022/2023}
 \maketitle
-\tableofcontents
 
-\chapter{Introduzione}
-TODO...
-\section{Schema semafori server-client-client}
+\section{Introduzione}
 
+Il progetto riguarda lo sviluppare il gioco “Forza 4”. Il gioco si svolge tra due giocatori, su un campo che da dimensione minima di 5x5 dove ogni giocatore deve decidere
+una colonna e lasciar cadere il proprio “gettone” dentro la colonna scelta che cadrà sopra un altro gettone posato oppure si poserà semplicemente sul fondo. Il giocatore
+vince quando è riuscito ad allineare 4 propri gettoni senza interruzione. Per semplicità abbiamo scelto di considerare validi soltanto gli allineamenti verticali e orizzontali
+tralasciando gli allineamenti diagonali.
+Le system call da utilizzare obbligatoriamente sono:
+\begin{itemize}
+\item Gestione dei processi figli
+\item Memoria condivisa
+\item Segnali e semafori tra processi
+\end{itemize}
+Il gioco deve essere implementato con due eseguibili:
+\begin{itemize}
+\item F4Server che si occupa di inizializzare il gioco e di arbitrare la partita.
+\item F4Client che si occupa di gestire la mossa del giocatore e visualizzare il tabellone di gioco.
+\end{itemize}
 
+\section{Implementazione System Call}
 
+\subsection{Gestione dei processi figli}
 
+Abbiamo utilizzato la funzione \texttt{getpid()} per recuperare i pid dei processi che sono coinvolti. I pid vengono salvati in una struttura chiamata \texttt{shared\_pid}.
 
+Per la terminazione del giocatore che abbandona durante la partita abbiamo utilizzato la funzione \texttt{exit()}.
 
+\subsection{Memoria Condivisa}
 
+Sono state definite tre shared memory. La prima (\texttt{shared\_board}) per la gestione di una matrice di caratteri che funge da tabellone di gioco, la seconda struttura condivisa (\texttt{shared\_pid}) si occupa della condivisione del pid dei vari giovatori ed infine, la terza (\texttt{winning}) si occupa della gestione della vittoria e della sconfitta dei due giocatori.
 
+\subsubsection*{shared\_board - La gestione del tabellone di gioco}
 
+La struttura \`e definita come segue:
+\begin{lstlisting}[language=C]
+struct shared_board {
+	char board[100][100];
+	int rows; 
+	int cols;
+};
+\end{lstlisting}
 
+La struttura contiene la matrice che funge da tabellone e il numero di righe e colonne di tale matrice. 
 
+Successivamente, nel \texttt{main} del file \texttt{F4Server.c}, questa struttura viene collegata al puntatore \texttt{ptr\_gb}:
 
+\begin{lstlisting}[language=C]
+/* Puntatore dichiarato globalmente */
+int shBoardID
+struct shared_board *ptr_gb;
 
+int main () {
+	key_t boardKey = 5090;
+	
+	size_t boardSize = sizeof(struct shared_board);
+	shBoardID = shmget(boardKey, boardSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+	if (shBoardID == -1) {
+		errExit("shmget board failed");
+	}
 
+	ptr_gb = shmat(shBoardID, NULL, 0);
+}
+\end{lstlisting}
 
+\subsubsection*{shared\_pid - Gestione delle info dei giocatori}
 
+La struttura \`e definita come segue:
+\begin{lstlisting}[language=C]
+struct shared_pid {
+	bool first;
+	char player1Name[100];
+	pid_t player1;
+	char player1Token;
+	char player2Name[100];
+	pid_t player2;
+	char player2Token;
+	pid_t serverPid;
+};
+\end{lstlisting}
+
+In questa struttura vengono salvate tutte le informazioni necessarie al server e ai client per interagire tra loro e gestire correttamente la partita. La voce booleana \emph{first} si occupa di determinare se il client connesso \`e il primo, che in quel caso attender\`a su un semaforo o se \`e il secondo, che in quel caso sbloccher\`a il semaforo su cui attende il server.
+Le altre variabili sono dei semplici contenitori di nome, gettone e pid dei giocatori e del pid del server.
+
+Nel main la memoria condivisa viene creata e inizializzata:
+\begin{lstlisting}[language=C]
+struct shared_pid *ptr_playersPid;
+int shPidID;
+
+int main() {
+	key_t pidKey = 6050;
+	
+	size_t winSize = sizeof(struct shared_pid);
+	shPidID = shmget(pidKey, pidSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+	if (shPidID == -1) {
+		errExit("shmget players failed");
+    	}
+	
+	ptr_playersPid = shmat(shPidID, NULL, 0);
+	
+	/* inizializzazione campi */
+	ptr_playersPid->player1 = -1;
+	ptr_playersPid->player2 = -2;
+	ptr_playersPid->first = true;
+	ptr_playersPid->serverPid = getpid();
+}
+\end{lstlisting}
+
+\subsubsection*{winning - Gestione del fine partita}
+La struttura \texttt{winning} \`e quella che si occupa della gestione della vittoria e della sconfitta dei giocatori. Viene definita nel seguente modo:
+\begin{lstlisting}[language=C]
+struct winning {
+	int playerLeft; 	
+	bool player1Win; 
+	bool player2Win;
+	bool full;
+	bool end;
+};
+\end{lstlisting}
+
+Il campo \emph{playerLeft} viene usato dal signal handler che si occupa di intercettare la pressione ripetuta dei tasti \texttt{CTRL-C}, alla chiusura del processo viene inserito il pid del giocatore che ha abbandonato la partita.
+I campi \emph{player1Win} e \emph{player2Win} sono usati durante il controllo dello stato della partita, tra un turno e l'altro quando il controllo torna al server. Se quest'ultimo riscontra una vittoria imposter\`a i valori a \texttt{true} e \texttt{false} di conseguenza, notificando i client che la partita \`e terminata. Questo viene fatto attraverso il campo \emph{end} che viene posto a \texttt{true}. L'ultimo campo, \emph{full}, viene usato per determinare se non ci sono pi\`u mosse disponibili, ovvero quando la partita finisce in parit\`a.
+
+Questa struttura viene collegata nel main come segue:
+\begin{lstlisting}[language=C]
+struct winning;
+int shWinID;
+
+int main() {
+	key_t winKey = 4070;
+	
+	size_t winSize = sizeof(struct winning);
+	shWinID = shmget(winKey, winSize, IPC_CREAT | S_IRUSR | S_IWUSR);
+    	if (shWinID == -1) {
+        		errExit("shmget winning failed");
+    	}
+
+	ptr_winCheck = shmat(shWinID, NULL, 0);
+
+	/* inizializzazione campi */
+	ptr_winCheck->player1Win = false;
+	ptr_winCheck->player2Win = false;
+	ptr_winCheck->full = false;
+	ptr_winCheck->end = true;
+}
+\end{lstlisting}
+
+\section{Segnali}
+
+Abbiamo utilizzato tre segnali: \texttt{SIGINT, SIGUSR1 e SIGUSR2}.
+
+\subsection{SIGINT}
+Questo segnale serve per chiudere un processo con la combinazione di tasti \texttt{CTRL-C}. Per il regolamento del gioco, il giocatore che intende abbandonare deve premerlo due volte. Abbiamo implementato l'handler per gestire questa regola nel seguente modo.
+\subsubsection*{Lato SERVER}
+\begin{lstlisting}[language=C]
+int count_sig = 0;
+
+void sigHandler(int sig) {
+    if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        errExit("signal handler failed");
+    }
+    if (count_sig == 0) {
+        printf("\n<Server> Attenzione pressione CTRL+C rilevata. Un'ulteriore pressione comporta la chiusura del gioco!\n");
+        count_sig++;
+    }
+    else if (count_sig == 1) {
+        printf("\n<F4Server> Gioco terminato dal Server.\n");
+
+        /* Chiusura di shared memory e semafori */
+        closeGameProcedure();
+
+        /* Invio del segnale di chiusura ai processi F4Client */
+        if (kill(ptr_playersPid->player1,SIGKILL) == -1 || kill(ptr_playersPid->player2,SIGKILL) == -1 ) {
+            errExit("kill failed");
+        } else {
+            printf("<F4Server> Tutti i giocatori sono usciti dalla partita!\n");
+            printf("<F4Server> Partita terminata!");
+        }
+        exit(0);
+    }
+}
+
+/* Intercettazione del segnale nel main */
+int main() {
+	/* ... */
+	if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        		errExit("change signal SIGINT handler failed");
+    	}
+    	/*...*/
+}	
+\end{lstlisting}
+La variabile globale \texttt{count\_sig} che conta quante volte viene intercettato il segnale \texttt{SIGINT}. Quando la variabile è uguale a 0 viene stampato a schermo che se il giocatore preme un’altra volta \texttt{CTRL-C} il server chiude il gioco. Se lo preme un'altra volta il client si chiude con \texttt{exit(0)}. Prima dell'effettiva chiusura viene inviato un segnale di terminazione ai due processi client. 
+
+\subsubsection*{Lato CLIENT}
+
+\begin{lstlisting}[language=C]
+int count_sig = 0;
+
+/* Handler del segnale di interruzione Ctrl+C */
+void sigHandler(int sig) {
+    if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        errExit("signal handler failed");
+    }
+
+    if (count_sig == 0) {
+        printf("\n<F4Server> Attenzione pressione CTRL+C rilevata. Un'ulteriore pressione comporta la chiusura del gioco!\n");
+        count_sig++;
+    } else if (count_sig == 1) {
+        printf("\n<F4Server> Gioco terminato dal Server.\n");
+
+        /* Informo il server che il processo client corrente ha abandonato */
+        ptr_winCheck->playerLeft = getpid();
+        if (kill(ptr_playersPid->serverPid, SIGUSR1) == -1) {
+            errExit("kill SIGUSR1 failed");
+        }
+
+        exit(0);
+    }
+}
+
+int main() {
+	/* Intercettazione del segnale nel main */
+	if (signal(SIGINT, sigHandler) == SIG_ERR) {
+        		errExit("signal handler failed");
+    	}
+}
+\end{lstlisting}
+
+Funziona con la stessa modalità del server ma cambia la gestione dell’uscita della partita. Quando viene premuto per la seconda volta \texttt{CTRL-C} viene aggiornata la struttura dati che si occupa della vittoria e viene scritto sulla variabile \texttt{playerLeft} il pid del client che abbandona. Successivamente viene mandato al server il segnale
+\texttt{SIGUSR1} che notifica l’abbandono e il client si chiude con la funzione \texttt{exit(0)}.
+
+\subsection{SIGUSR1}
+
+Questo segnale si occupa della gestione di norifica dell'abbandono di uno dei due client. Viene inviato al server quando un client abbandona la partita. L'handler del segnale \`e stato implementato come segue:
+\begin{lstlisting}[language=C]
+void sigHandlerPlayerLeft(int sig) {
+
+    if (ptr_playersPid->player1 == ptr_winCheck->playerLeft) {
+        printf("\n<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player1Name);
+    } else {
+        printf("\n<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player2Name);
+    }
+
+    exit(0);
+}
+
+int main() {
+	/* Handler abbandono partita di un giocatore */
+   	 if (signal(SIGUSR2, sigHandlerPlayerLeft) == SIG_ERR) {
+         	errExit("signal handler failed");
+	 }
+}
+\end{lstlisting}
+
+Quando avviene la notifica dell’abbandono viene mandato al giocatore ancora in partita il segnale \texttt{SIGUSR2} che notifica la vittoria e si occupa di tutta la questione relativa alla chiusura delle shared memory e del set di semafori invocando la funzione \texttt{closeGameProcedure()}.
+
+\subsection{SIGUSR2}
+
+Questo segnale si occupa di notificare la vincita al player che \`e rimasto ancora in partita. Viene mandato dal server e lo riceve il client vincitore. L'handler \`e stato implementato come segue:
+\begin{lstlisting}[language=C]
+void sigHandlerPlayerLeft(int sig) {
+
+    if (ptr_playersPid->player1 == ptr_winCheck->playerLeft) {
+        printf("\n<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player1Name);
+    } else {
+        printf("\n<F4Client> Hai vinto per abbandono di %s.\n", ptr_playersPid->player2Name);
+    }
+
+    exit(0);
+}
+
+int main() {
+	/* Intercettazione del segnale SIGUSR2 */
+    	if (signal(SIGUSR2, sigHandlerPlayerLeft) == SIG_ERR) {
+        		errExit("signal handler failed");
+    }
+}
+
+\end{lstlisting}
+Avviene un controllo del pid e in base a chi ha vinto stampa a schermo la frase di vittoria e il player che ha abbandonato. Anche in questo caso la chiusura avviene attraverso la funzione \texttt{exit(0)}. 
+\newpage
+\section{Semafori}
+
+I semafori sono stati implementati seguendo questo schema.
+\begin{lstlisting}[language=C]
+bool S = 0, C1 = 0, C2 = 0;	// 3 semafori inizializzati a 0
+\end{lstlisting}
+\subsection*{Server}
+\begin{lstlisting}[language=C]
+int Server() {
+	/* Creazione ed inizializzazione handler dei segnali
+	  * e delle varie strutture nella memoria condivisa */
+
+	P(S); 		// attesa dei client
+	while (!win) {
+
+		V(C1); 		// concessione del turno al primo client
+		P(S);		// attesa
+	
+		/* Verifica dello stato di gioco, se nessuno 
+		  * ha vinto passo il turno al giocatore 2 */
+	
+		V(C2);		// turno al secondo client
+		P(S);		// attesa
+		
+		/* Verifica dello stato di gioco, se nessuno
+		 * ha vinto passo il turno al giocatore 1 */		
+	
+	}
+}
+\end{lstlisting}
+\subsection*{Client}
+\begin{lstlisting}[language=C]
+int Client() {
+	/* Ottenimento dell'accesso alle strutture
+	 * della memoria condivisa e inizializzazione
+	 * degli handler dei segnali. */
+	 
+	 if (ptr_playersPid->first == true) {
+	 	P(C1);		// attesa del secondo client
+	 } else {
+	 	P(C2); 		// attesa del turno
+	 }
+	
+	do {
+		if (player1 && !endGame) {
+			/* Turno del client 1 */
+			V(S);		// libero il server
+			P(C1);		// attendo il prossimo turno
+		}
+		
+		if (player2 && !endGame) {
+			/* Turno del client 2 */
+			V(S);		// libero il server
+			P(C2);		// attendo il prossimo turno
+		}	
+		
+		/* Verifica se il server ha comunicato un vincitore */
+	} while (!endGame);	
+}
+
+\end{lstlisting}
+	
+\section{Struttura del codice}
+\subsection{Codice del Client}
+Sono state definite alcune funzioni per ottimizzare la leggibilit\`a del codice e per la gestione dei segnali. Le funzioni sono:
+\begin{itemize}
+\item \texttt{bool checkValidity}: si occupa di gestire l'inserimento del gettone del player. Ritorna true se il gettone viene inserito, false altrimenti. I parametri sono: \texttt{struct shared\_board *ptr\_sh}, ovvero la struttura contenente il tabellone di gioco; \texttt{int col}, la variabile su cui \`e salvata la colonna scelta dall'utente ed infine, \texttt{char token}, il gettone del giocatore attivo.
+\item \texttt{void printBoard}: procedura che si occupa di stampare a video la matrice che funge da campo di gioco. Il suo unico parametro \`e \texttt{struct shared\_board *ptr\_sh}.
+\item \texttt{sigHandler}: handler di gestione della pressione del \texttt{CTRL-C}, come spiegato nel capitolo sui segnali.
+\item \texttt{sigHandlerPlayerLeft}: handler di gestione dell'abbandono della partita, spiegato nel capitolo sui segnali.
+\item \texttt{main}: nel main sono presenti la gestione delle shared memory dove viene effettuato l'attachment ai puntatori; la gestione dei turni, effettuata tramite i semafori e la richiesta di input.
+\end{itemize}
+
+\section{Codice del Server}
+Le funzioni e le procedure definite nel server sono:
+\begin{itemize}
+\item \texttt{closeGameProcedure}: funzione che si occupa di gestire in modo coerente la chiusura di tutte le shared memory e dei semafori utilizzati, effettuando la detach e la remove delle shared memory e la rimozione del set di semafori creati.
+\item \texttt{checkGameStatus}: \`e la funzione di verifica vittoria o sconfitta. Controlla, dopo ogni turno, se si è creata la condizione di vittoria del giocatore che ha appena inserito la giocata.
+\item \texttt{sigHandler}: funzione di gestione della pressione di \texttt{CTRL-C}. Viene spiegato il suo funzionamento nel capitolo sui segnali.
+\item \texttt{sigPlayerLeft}: gestisce la ricevuta di notifica di abbandono di uno dei due giocatori. Spiegata nel dettaglio sotto la voce segnali.
+\item \texttt{main}: qui è presente la gestione delle shared memory. Vengono create le memorie condivise e agganciate ai puntatori. È presente anche la creazione e l'inizializzazione del set di semafori che servono per la gestione dei turni.
+\end{itemize}
+ 
 
 
 
@@ -71,4 +425,3 @@ TODO...
 
 
 \end{document}
-
